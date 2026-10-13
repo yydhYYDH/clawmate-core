@@ -1,0 +1,8 @@
+{
+  "modelVersion": "6.0.2",
+  "description": "ClawMate Core - minimal chat + self-HDC GUI control for OpenHarmony",
+  "dependencies": {
+  },
+  "devDependencies": {
+  }
+}

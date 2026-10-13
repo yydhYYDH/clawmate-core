@@ -1,0 +1,11 @@
+{
+  "app": {
+    // 全工程唯一的包名；ArkTS、Hvigor 与设备辅助脚本均从这里读取。
+    "bundleName": "com.clawmate.core",
+    "vendor": "clawmate",
+    "versionCode": 1000000,
+    "versionName": "1.0.0",
+    "icon": "$media:Icon",
+    "label": "$string:app_name"
+  }
+}
