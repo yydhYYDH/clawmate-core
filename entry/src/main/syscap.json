@@ -1,0 +1,18 @@
+{
+  "devices": {
+    "general": [
+      "default"
+    ],
+    "custom": []
+  },
+  "production": {
+    "addedSysCaps": [],
+    // 目标设备（OpenHarmony 5.1.0 / API 18）实际 275 个系统能力，与 default.json 的 227 个
+    // 恰好相差以下 3 个。将它们从 App 需求集合移除，避免安装时系统能力校验失败。
+    "removedSysCaps": [
+      "SystemCapability.Communication.FusionConnectivity.Core",
+      "SystemCapability.Test.PerfTest",
+      "SystemCapability.Applications.IntelligentScene"
+    ]
+  }
+}

@@ -2,7 +2,20 @@
   "app": {
     // 签名信息请在本机 DevEco Studio 中配置（File → Project Structure → Signing Configs）。
     // 目标设备为 OpenHarmony 5.1.0 (API 18)，故使用 OpenHarmony runtimeOS。
-    "signingConfigs": [],
+    "signingConfigs": [
+      {
+        "name": "default",
+        "material": {
+          "certpath": "C:/Users/32022/.ohos/config/openharmony/default_clawmate-core_4kDD-b-xTVbD2FMvxpKhqn1bsGFBu4jD3SNg2qYiqpI=.cer",
+          "keyAlias": "debugKey",
+          "keyPassword": "0000001B610F5A773EB34FD224FD5B217695F5AA50271314FD4A38438E7EB016C1FFE07EC0DCCBD7199AB9",
+          "profile": "C:/Users/32022/.ohos/config/openharmony/default_clawmate-core_4kDD-b-xTVbD2FMvxpKhqn1bsGFBu4jD3SNg2qYiqpI=.p7b",
+          "signAlg": "SHA256withECDSA",
+          "storeFile": "C:/Users/32022/.ohos/config/openharmony/default_clawmate-core_4kDD-b-xTVbD2FMvxpKhqn1bsGFBu4jD3SNg2qYiqpI=.p12",
+          "storePassword": "0000001BD6747C053AF1C40CD6A979E4F20BE69A606091FF2068FC28D04D5A6C1E822D13694DE1085331AF"
+        }
+      }
+    ],
     "products": [
       {
         "name": "default",
@@ -15,12 +28,16 @@
             "caseSensitiveCheck": true,
             "useNormalizedOHMUrl": true
           }
-        }
+        },
       }
     ],
     "buildModeSet": [
-      { "name": "debug" },
-      { "name": "release" }
+      {
+        "name": "debug"
+      },
+      {
+        "name": "release"
+      }
     ]
   },
   "modules": [
