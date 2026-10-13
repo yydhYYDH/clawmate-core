@@ -1,3 +1,4 @@
+import { phoneAppList } from './AppCatalog';
 // Planner 与 Decider 的提示词。Planner 选应用并改写任务；Decider 输出下一步动作。
 
 export const PLANNER_PROMPT: string = `## 角色定义
@@ -8,16 +9,7 @@ export const PLANNER_PROMPT: string = `## 角色定义
 
 ## 可用应用列表
 以下是本机可用的应用及其包名：
-- 设置: com.ohos.settings
-- 图库: com.ohos.photos
-- 相机: com.ohos.camera
-- 信息: com.ohos.mms
-- 备忘录: com.ohos.note
-- 联系人: com.ohos.contacts
-- 时钟: ohos.samples.etsclock
-- 音乐: ohos.samples.distributedmusicplayer
-- 计算器: ohos.samples.distributedcalc
-- 键盘: com.example.kikakeyboard
+${phoneAppList()}
 
 ## 任务要求
 1. 根据用户任务描述，从“可用应用列表”中选择最合适的应用。
@@ -54,7 +46,13 @@ Your action space includes:
 
 ### Response Format
 Your output should be a JSON object with the following format:
-{"reasoning": "Your reasoning here", "action": "The next action", "parameters": {"param1": "value1", "param2": "value2"}}`;
+{"reasoning": "Your reasoning here", "action": "The next action", "parameters": {"param1": "value1", "param2": "value2"}, "progress": "", "summary": ""}
+
+### User-facing progress
+- Write progress and summary in concise Chinese. They are public status messages, not reasoning.
+- When there is an action history, use progress to report the visible outcome of the LAST action, based only on the CURRENT screenshot. If its effect cannot be confirmed, say so. Leave progress empty when there is no new observation.
+- Use summary for the final outcome when action is done. Always include parameters.status (success, suspended or failed).
+- Do not claim saving, sending, or completion merely because a button was clicked.`;
 
 export const DECIDER_USER_PROMPT: string = `### Current Task
 "{task}"

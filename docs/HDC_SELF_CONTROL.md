@@ -144,8 +144,9 @@ y = clamp(bbox_y, 0, 1000) / 1000 * physicalHeight
 - `hdc shell` 报 `need connect-key`：sockets 中出现多个 target 时需 `hdc -t <key>` 指定。
 - 随机端口：不设 `persist.hdc.port` 时 hdcd 每次重启会换端口；App 端端口可配置。
 - 无网络：设备默认只有 loopback，云端 planner/decider 需要先给 `wlan0/eth*` 配 IP。
-- App 切后台：打开目标应用后本 App 进入后台，需要 `KEEP_BACKGROUND_RUNNING` +
-  `backgroundTaskManager.requestSuspendDelay` 维持任务窗口。
+- App 切后台：优先通过 `KEEP_BACKGROUND_RUNNING` + `startBackgroundRunning` 维持持续任务；
+  申请失败时回退 `requestSuspendDelay`。临时额度到期会停止后续动作和云端等待。
+- 中文输入、日志折叠、阶段正文和取消验收：见 [基础 GUI 助手改造与验收](CORE_GUI_STATUS.md)。
 
 ## 6. 回滚
 

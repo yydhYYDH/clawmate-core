@@ -1,6 +1,7 @@
 import { http } from '@kit.NetworkKit';
 import { JSON as ArkJSON } from '@kit.ArkTS';
 import { EndpointConfig } from './EndpointConfig';
+import { AgentRunError } from './AgentRunState';
 import { DECIDER_CURRENT_STEP_PROMPT, DECIDER_SYSTEM_PROMPT, DECIDER_USER_PROMPT } from './Prompts';
 
 export interface CloudTextPart {
@@ -51,6 +52,18 @@ interface ResponseBody {
 // 极简 OpenAI 兼容客户端：Planner 与 Decider 共用，分别指向不同 base URL。
 export class CloudModelClient {
   private config: EndpointConfig;
+  private cancelled: boolean = false;
+  private rejectPending: ((error: Error) => void) | null = null;
+  private pendingRequest: http.HttpRequest | null = null;
+
+  cancel(): void {
+    this.cancelled = true;
+    // destroy() 不保证立刻回调；主动拒绝等待中的 Promise。
+    if (this.rejectPending !== null) { this.rejectPending(new Error('任务已取消。')); }
+    if (this.pendingRequest !== null) {
+      try { this.pendingRequest.destroy(); } catch (e) { /* 超时已销毁请求。 */ }
+    }
+  }
 
   constructor(config: EndpointConfig) {
     this.config = config;
@@ -123,6 +136,7 @@ export class CloudModelClient {
   }
 
   private async post(url: string, apiKey: string, body: ChatRequestBody): Promise<string> {
+    if (this.cancelled) { throw new AgentRunError('cancelled', '任务已取消。'); }
     let headers: Record<string, string> = {
       'Content-Type': 'application/json',
       'Authorization': 'Bearer ' + (apiKey.length > 0 ? apiKey : 'EMPTY')
@@ -132,12 +146,22 @@ export class CloudModelClient {
       header: headers,
       extraData: ArkJSON.stringify(body),
       connectTimeout: 15000,
-      readTimeout: 180000,
+      readTimeout: 90000,
       expectDataType: http.HttpDataType.STRING
     };
     let request = http.createHttp();
+    this.pendingRequest = request;
+    let timer = -1;
     try {
-      let response = await request.request(url, options);
+      let response = await new Promise<http.HttpResponse>((resolve, reject): void => {
+        this.rejectPending = reject;
+        timer = setTimeout((): void => {
+          reject(new Error('模型响应超过 90 秒，已停止等待，请稍后重试。'));
+          request.destroy();
+        }, 90000);
+        request.request(url, options).then(resolve).catch(reject);
+      });
+      if (this.cancelled) { throw new AgentRunError('cancelled', '任务已取消。'); }
       if (response.responseCode < 200 || response.responseCode >= 300) {
         throw new Error('HTTP ' + response.responseCode + ': ' +
           String(response.result).substring(0, 300));
@@ -154,7 +178,10 @@ export class CloudModelClient {
       }
       return content;
     } finally {
-      request.destroy();
+      clearTimeout(timer);
+      this.rejectPending = null;
+      this.pendingRequest = null;
+      try { request.destroy(); } catch (e) { /* 取消或超时已销毁请求。 */ }
     }
   }
 }

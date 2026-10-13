@@ -35,10 +35,13 @@ export class PhoneBridge {
   private closed: boolean = false;
   private opened: boolean = false;
   private filesDir: string = '';
+  private unavailable: ((error: Error) => void) | undefined;
 
-  constructor(config: EndpointConfig, log: (message: string) => void) {
+  constructor(config: EndpointConfig, log: (message: string) => void,
+    unavailable?: (error: Error) => void) {
     this.config = config;
     this.log = log;
+    this.unavailable = unavailable;
     this.client = new HdcClient((event: string): void => { this.log(event); });
   }
 
@@ -87,15 +90,20 @@ export class PhoneBridge {
       await backgroundTaskManager.startBackgroundRunning(AppRuntime.getContext(),
         backgroundTaskManager.BackgroundMode.DATA_TRANSFER, agent);
       this.continuous = true;
+      this.check();
       this.deadline = 0;
       this.log('BACKGROUND continuous task started (DATA_TRANSFER)');
     } catch (e) {
+      this.check();
       this.log('BACKGROUND continuous failed: ' + (e as Error).message + '; 回退临时任务');
       let delay = backgroundTaskManager.requestSuspendDelay('ClawMate Core 手机 GUI 任务', (): void => {
         if (this.closed) { return; }
         this.expired = true;
         this.log('PHONE_HDC_BACKGROUND_EXPIRED: 后台额度到期，停止后续动作');
         this.client.close();
+        if (this.unavailable !== undefined) {
+          this.unavailable(new Error('后台运行时间已到期，已停止操作。'));
+        }
       });
       this.suspendId = delay.requestId;
       this.deadline = Date.now() + delay.actualDelayTime;
@@ -113,6 +121,15 @@ export class PhoneBridge {
   cancel(): void {
     this.cancelled = true;
     this.client.close();
+  }
+
+  async returnHost(): Promise<void> {
+    try {
+      let context = AppRuntime.getContext();
+      await context.startAbility({ bundleName: AppRuntime.bundleName(), abilityName: context.abilityInfo.name });
+    } catch (e) {
+      this.log('RETURN_APP_FAILED: ' + (e as Error).message + '；请手动返回 ClawMate');
+    }
   }
 
   async close(): Promise<void> {

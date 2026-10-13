@@ -1,6 +1,7 @@
 import { JSON as ArkJSON } from '@kit.ArkTS';
+import { PHONE_APPS } from '../AppCatalog';
 
-// Same app aliases as harmony_agent.py; the PC source remains untouched.
+// 第三方应用别名；系统应用优先使用 AppCatalog 中的 OpenHarmony 包名。
 const APP_BUNDLES: Record<string, string> = {
   '携程': 'com.ctrip.harmonynext', '携程旅行': 'com.ctrip.harmonynext', '飞猪': 'com.fliggy.hmos',
   '飞猪旅行': 'com.fliggy.hmos', 'IntelliOS': 'ohos.hongmeng.intellios', '同城': 'com.tongcheng.hmos',
@@ -10,10 +11,10 @@ const APP_BUNDLES: Record<string, string> = {
   '京东': 'com.jd.hm.mall', '天气': 'com.huawei.hmsapp.totemweather', '什么值得买': 'com.smzdm.client.hmos',
   '闲鱼': 'com.taobao.idlefish4ohos', '慧通差旅': 'com.smartcom.itravelhm', 'PowerAgent': 'com.example.osagent',
   '航旅纵横': 'com.umetrip.hm.app', '滴滴出行': 'com.sdu.didi.hmos.psnger', '电子邮件': 'com.huawei.hmos.email',
-  '图库': 'com.huawei.hmos.photos', '日历': 'com.huawei.hmos.calendar', '心声社区': 'com.huawei.it.hmxinsheng',
-  '信息': 'com.ohos.mms', '文件管理': 'com.huawei.hmos.files', '运动健康': 'com.huawei.hmos.health',
+  '日历': 'com.huawei.hmos.calendar', '心声社区': 'com.huawei.it.hmxinsheng',
+  '文件管理': 'com.huawei.hmos.files', '运动健康': 'com.huawei.hmos.health',
   '智慧生活': 'com.huawei.hmos.ailife', '豆包': 'com.larus.nova.hm', 'WeLink': 'com.huawei.it.welink',
-  '设置': 'com.huawei.hmos.settings', '懂车帝': 'com.ss.dcar.auto', '美团外卖': 'com.meituan.takeaway',
+  '懂车帝': 'com.ss.dcar.auto', '美团外卖': 'com.meituan.takeaway',
   '大众点评': 'com.sankuai.dianping', '美团': 'com.sankuai.hmeituan', '浏览器': 'com.huawei.hmos.browser',
   '拼多多': 'com.xunmeng.pinduoduo.hos', '支付宝': 'com.alipay.mobile.client'
 };
@@ -21,7 +22,8 @@ const APP_BUNDLES: Record<string, string> = {
 export function phoneHdcBundle(appName: string, packageName: string): string {
   let candidates = [packageName.trim(), appName.trim()];
   for (let index = 0; index < candidates.length; index++) {
-    let candidate = APP_BUNDLES[candidates[index]] || candidates[index];
+    let known = PHONE_APPS.find((app): boolean => app.name === candidates[index]);
+    let candidate = known ? known.bundle : (APP_BUNDLES[candidates[index]] || candidates[index]);
     if (/^[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+$/.test(candidate)) { return candidate; }
   }
   throw new Error('PHONE_HDC_APP: cannot resolve bundleName for ' + appName);
@@ -64,7 +66,8 @@ export function phoneHdcMainAbility(output: string): string {
       let score = (name === main ? 1 : 0) +
         (ability.moduleName === info.mainEntry && !!info.mainEntry ? 1 : moduleScore);
       for (let skill of ability.skills || []) {
-        if ((skill.actions || []).indexOf('action.system.home') >= 0) {
+        if ((skill.actions || []).indexOf('action.system.home') >= 0 ||
+          (skill.actions || []).indexOf('ohos.want.action.home') >= 0) {
           score += 10; break;
         }
       }
