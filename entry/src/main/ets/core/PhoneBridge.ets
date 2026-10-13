@@ -1,4 +1,5 @@
 import { backgroundTaskManager } from '@kit.BackgroundTasksKit';
+import { wantAgent, Want } from '@kit.AbilityKit';
 import { deviceInfo } from '@kit.BasicServicesKit';
 import { image } from '@kit.ImageKit';
 import { util } from '@kit.ArkTS';
@@ -26,6 +27,7 @@ export class PhoneBridge {
   private cancelled: boolean = false;
   private expired: boolean = false;
   private geometryReady: boolean = false;
+  private continuous: boolean = false;
   private suspendId: number = -1;
   private deadline: number = 0;
   private shotSequence: number = 0;
@@ -64,19 +66,44 @@ export class PhoneBridge {
       'command -v aa && command -v bm && command -v snapshot_display && command -v uitest && command -v base64',
       'tool-preflight', false, false);
     await this.probeUiInputCapabilities();
-    let delay = backgroundTaskManager.requestSuspendDelay('ClawMate Core 手机 GUI 任务', (): void => {
-      if (this.closed) { return; }
-      this.expired = true;
-      this.log('PHONE_HDC_BACKGROUND_EXPIRED: 后台额度到期，停止后续动作');
-      this.client.close();
-    });
-    this.suspendId = delay.requestId;
-    this.deadline = Date.now() + delay.actualDelayTime;
-    this.log('BACKGROUND request=' + delay.requestId + ' budgetMs=' + delay.actualDelayTime);
-    if (delay.actualDelayTime < 30000) {
-      throw new Error('PHONE_HDC_BACKGROUND: 后台可用时间不足 30 秒');
-    }
+    await this.startKeepAlive();
     this.opened = true;
+  }
+
+  // 优先申请“持续任务”（无固定额度），失败再回退到临时任务（额度由系统给定，通常 60s）。
+  private async startKeepAlive(): Promise<void> {
+    try {
+      let want: Want = {
+        bundleName: AppRuntime.bundleName(),
+        abilityName: 'EntryAbility'
+      };
+      let info: wantAgent.WantAgentInfo = {
+        wants: [want],
+        operationType: wantAgent.OperationType.START_ABILITY,
+        requestCode: 100,
+        wantAgentFlags: [wantAgent.WantAgentFlags.UPDATE_PRESENT_FLAG]
+      };
+      let agent = await wantAgent.getWantAgent(info);
+      await backgroundTaskManager.startBackgroundRunning(AppRuntime.getContext(),
+        backgroundTaskManager.BackgroundMode.DATA_TRANSFER, agent);
+      this.continuous = true;
+      this.deadline = 0;
+      this.log('BACKGROUND continuous task started (DATA_TRANSFER)');
+    } catch (e) {
+      this.log('BACKGROUND continuous failed: ' + (e as Error).message + '; 回退临时任务');
+      let delay = backgroundTaskManager.requestSuspendDelay('ClawMate Core 手机 GUI 任务', (): void => {
+        if (this.closed) { return; }
+        this.expired = true;
+        this.log('PHONE_HDC_BACKGROUND_EXPIRED: 后台额度到期，停止后续动作');
+        this.client.close();
+      });
+      this.suspendId = delay.requestId;
+      this.deadline = Date.now() + delay.actualDelayTime;
+      this.log('BACKGROUND request=' + delay.requestId + ' budgetMs=' + delay.actualDelayTime);
+      if (delay.actualDelayTime < 30000) {
+        throw new Error('PHONE_HDC_BACKGROUND: 后台可用时间不足 30 秒');
+      }
+    }
   }
 
   hasExpired(): boolean {
@@ -88,9 +115,18 @@ export class PhoneBridge {
     this.client.close();
   }
 
-  close(): void {
+  async close(): Promise<void> {
     this.closed = true;
     this.client.close();
+    if (this.continuous) {
+      this.continuous = false;
+      try {
+        await backgroundTaskManager.stopBackgroundRunning(AppRuntime.getContext());
+        this.log('BACKGROUND continuous task stopped');
+      } catch (e) {
+        this.log('BACKGROUND stop continuous failed: ' + (e as Error).message);
+      }
+    }
     if (this.suspendId >= 0) {
       try { backgroundTaskManager.cancelSuspendDelay(this.suspendId); } catch (e) {
         this.log('BACKGROUND release failed: ' + (e as Error).message);
@@ -126,7 +162,9 @@ export class PhoneBridge {
     let runId = Date.now();
     let remote = '/data/local/tmp/self_hdc_' + runId + '_gui_' + (++this.shotSequence) + '.jpeg';
     try {
-      await this.execute('snapshot_display -f ' + selfHdcShellQuote(remote), 'screenshot');
+      // 截图结果的正确性由后续 JPEG 魔数/大小校验保证；snapshot_display 在部分设备上会打印
+      // 良性 I/O warning，故此处不再按输出文本判失败，只认退出码。
+      await this.execute('snapshot_display -f ' + selfHdcShellQuote(remote), 'screenshot', false, false);
       let encoded = (await this.execute('base64 ' + selfHdcShellQuote(remote), 'screenshot-transfer', true, false))
         .replace(/\s/g, '');
       if (!encoded || encoded.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(encoded)) {

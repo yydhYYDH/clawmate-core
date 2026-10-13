@@ -1,6 +1,7 @@
 import { AgentRunner, AgentCallbacks } from '../core/AgentRunner';
 import { AppRuntime } from '../core/AppRuntime';
 import { EndpointConfig } from '../core/EndpointConfig';
+import { Logger } from '../core/Logger';
 
 interface ChatMessage {
   id: number;
@@ -77,19 +78,22 @@ struct Index {
 
   private async runTask(task: string): Promise<void> {
     this.running = true;
+    Logger.info('TASK START: ' + task);
     let runner = new AgentRunner(AppRuntime.getEndpoints());
     this.runner = runner;
     let callbacks: AgentCallbacks = {
-      onLog: (line: string): void => { this.append('log', line); },
-      onPhase: (phase: string): void => { this.phase = phase; },
+      onLog: (line: string): void => { Logger.info(line); this.append('log', line); },
+      onPhase: (phase: string): void => { Logger.info('PHASE ' + phase); this.phase = phase; },
       onStep: (step: number, maxSteps: number, action: string): void => {
         this.phase = '第 ' + step + '/' + maxSteps + ' 步 · ' + action;
       }
     };
     try {
       await runner.run(task, callbacks);
+      Logger.info('TASK DONE');
       this.append('result', '任务完成 ✅');
     } catch (e) {
+      Logger.error('TASK FAILED: ' + (e as Error).message);
       this.append('result', '任务失败 ❌ ' + (e as Error).message);
     } finally {
       this.running = false;
@@ -194,6 +198,18 @@ struct Index {
       .layoutWeight(1)
       .align(Alignment.Top)
       .width('100%')
+
+      // 快捷任务：点击后自动填入输入框
+      Row() {
+        Button('从设置页打开蓝牙')
+          .fontSize(12)
+          .height(30)
+          .backgroundColor('#E8F0FE')
+          .fontColor('#1A73E8')
+          .onClick((): void => { this.inputText = '从设置页打开蓝牙'; })
+      }
+      .width('100%')
+      .padding({ left: 10, right: 10, bottom: 4 })
 
       Row({ space: 8 }) {
         TextInput({ text: this.inputText, placeholder: '输入任务，例如：打开设置' })

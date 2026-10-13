@@ -50,7 +50,7 @@ export class AgentRunner {
       await bridge.startApp(target.appName, target.packageName, true);
       await this.executeLoop(target.task, callbacks, bridge);
     } finally {
-      bridge.close();
+      await bridge.close();
       this.bridge = null;
       callbacks.onPhase('结束');
     }

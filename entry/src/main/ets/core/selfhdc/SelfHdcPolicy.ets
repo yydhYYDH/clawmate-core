@@ -35,6 +35,9 @@ export function selfHdcHasCommandFailure(output: string): boolean {
     // uitest reports successful input as a whole line containing "No Error".
     // Ignore only that line, so a subsequent real error still stops the test.
     if (/^no error$/i.test(text)) { return false; }
+    // 部分 OpenHarmony 设备上 snapshot_display 会打印本地化资源缺失的
+    // "I/O warning : failed to load external entity ..."，这属于良性告警，不能当作命令失败。
+    if (/i\/o warning/i.test(text)) { return false; }
     return /error|fail|失败/i.test(text);
   });
 }
