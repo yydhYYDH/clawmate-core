@@ -37,12 +37,12 @@ function deferred() {
 function harness({ open, decider, planner } = {}) {
   let bridge;
   class Bridge {
-    constructor(config, log, unavailable) { bridge = this; this.unavailable = unavailable; this.closes = 0; this.starts = 0; this.actions = 0; }
+    constructor(config, log, unavailable) { bridge = this; this.unavailable = unavailable; this.closes = 0; this.starts = 0; this.actions = 0; this.returns = 0; this.cleanup = []; }
     async open() { if (open) await open(); }
-    async close() { this.closes++; }
+    async close() { this.closes++; this.cleanup.push('close'); }
     cancel() { this.cancelled = true; }
     hasExpired() { return false; }
-    async returnHost() {}
+    async returnHost() { this.returns++; this.cleanup.push('return'); }
     async startApp() { this.starts++; }
     async screenshot() { return { image_b64: 'jpeg', screen_width: 800, screen_height: 1280 }; }
     async guiAction() { this.actions++; }
@@ -81,6 +81,7 @@ test('initialization failure releases partially opened bridge', async () => {
   await assert.rejects(new h.Runner(config).run('打开设置', callbacks()), /preflight failed/);
   assert.equal(h.bridge().closes, 1);
   assert.equal(h.bridge().starts, 0);
+  assert.equal(h.bridge().returns, 0);
 });
 
 test('cancelling planner wait releases resources and does not launch an app', async () => {
@@ -106,6 +107,7 @@ test('late decider response after cancellation cannot issue device actions', asy
   await assert.rejects(run, error => error.status === 'cancelled');
   assert.equal(h.bridge().actions, 0);
   assert.equal(h.bridge().closes, 1);
+  assert.deepEqual(h.bridge().cleanup, ['return', 'close']);
 });
 
 test('failed model outcome propagates to caller as failed', async () => {
@@ -113,6 +115,7 @@ test('failed model outcome propagates to caller as failed', async () => {
   const result = await new h.Runner(config).run('打开设置', callbacks());
   assert.equal(result.status, 'failed');
   assert.equal(h.bridge().closes, 1);
+  assert.deepEqual(h.bridge().cleanup, ['return', 'close']);
 });
 
 test('HTTP cancellation settles even when destroy produces no request callback', async () => {
@@ -145,6 +148,53 @@ test('body receipts follow successful actions and terminal outcome follows the n
   assert.ok(contents.includes('第 1 步：已点击计算器按钮，正在检查页面变化。'));
   assert.ok(contents.includes('截图显示操作已生效。'));
   assert.equal(h.bridge().closes, 1);
+  assert.deepEqual(h.bridge().cleanup, ['return', 'close']);
+});
+
+function hostReturnHarness({ denied = false, shellFails = false, connectFails = false } = {}) {
+  const events = [];
+  const logs = [];
+  const load = loader({
+    [path.join(root, 'AppRuntime.ets')]: { AppRuntime: {
+      getContext: () => ({ abilityInfo: { name: 'EntryAbility' }, startAbility: async want => {
+        events.push(['ability', want]);
+        if (denied) throw new Error('background launch denied');
+      } }),
+      bundleName: () => 'com.clawmate.core'
+    } },
+    [path.join(root, 'selfhdc/HdcClient.ets')]: { HdcClient: class {
+      async connect(...args) { events.push(['connect', ...args]); if (connectFails) throw new Error('offline'); }
+      async shell(command) { events.push(['shell', command]); return { exitCode: shellFails ? 1 : 0, output: shellFails ? 'error: denied' : 'start ability successfully.' }; }
+      close() { events.push(['close']); }
+    } }
+  });
+  return { events, logs, run: () => load('HostAppReturn').returnToHost(config, '/app/files', line => logs.push(line)) };
+}
+
+test('returning to host uses ability API first and avoids an unnecessary HDC connection', async () => {
+  const h = hostReturnHarness();
+  await h.run();
+  assert.deepEqual(h.events, [['ability', { bundleName: 'com.clawmate.core', abilityName: 'EntryAbility' }]]);
+});
+
+test('background launch denial falls back to an independent self-HDC connection and releases it', async () => {
+  const h = hostReturnHarness({ denied: true });
+  await h.run();
+  assert.deepEqual(h.events.slice(1), [
+    ['connect', '127.0.0.1', 8710, '/app/files'],
+    ['shell', "aa start -b 'com.clawmate.core' -a 'EntryAbility'"], ['close']
+  ]);
+  assert.ok(h.logs.some(line => line.startsWith('RETURN_APP_OK')));
+});
+
+test('return failure is logged without overwriting task outcome and always closes fallback connection', async () => {
+  for (const failure of [{ shellFails: true }, { connectFails: true }]) {
+    const h = hostReturnHarness({ denied: true, ...failure });
+    await h.run();
+    assert.deepEqual(h.events.at(-1), ['close']);
+    assert.ok(h.logs.some(line => line.startsWith('RETURN_APP_FAILED')));
+    assert.ok(!h.logs.some(line => line.startsWith('RETURN_APP_OK')));
+  }
 });
 
 test('input-method settings fall back to system Settings when device has no config ability', async () => {

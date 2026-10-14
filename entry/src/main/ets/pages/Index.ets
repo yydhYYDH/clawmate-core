@@ -33,6 +33,7 @@ struct ChatMessageView {
   @ObjectLink message: ChatMessage;
   @Prop now: number = 0;
   onToggle: (id: number) => void = (_id: number): void => {};
+  onSelect: () => void = (): void => {};
 
   private statusText(message: ChatMessage): string {
     if (message.status === 'success') { return '已完成'; }
@@ -48,7 +49,11 @@ struct ChatMessageView {
         ForEach(this.message.paragraphs, (text: string, index: number): void => {
           Text(text).fontSize(15).lineHeight(23)
             .fontColor(this.message.role === 'user' ? Color.White : '#202124')
-            .width('100%').copyOption(CopyOptions.InApp)
+            .width('100%').copyOption(CopyOptions.LocalDevice)
+            .textSelectable(TextSelectableMode.SELECTABLE_FOCUSABLE)
+            .onTextSelectionChange((start: number, end: number): void => {
+              if (start >= 0 && end > start) { this.onSelect(); }
+            })
         }, (text: string, index: number): string => this.message.id + '-body-' + index)
         if (this.message.role === 'assistant') {
           if (this.message.status === 'running') {
@@ -75,7 +80,11 @@ struct ChatMessageView {
           if (!this.message.collapsed) {
             Column({ space: 4 }) {
               ForEach(this.message.logs, (line: string, index: number): void => {
-                Text(line).fontSize(11).fontColor('#8B95A5').width('100%').copyOption(CopyOptions.InApp)
+                Text(line).fontSize(11).fontColor('#8B95A5').width('100%').copyOption(CopyOptions.LocalDevice)
+                  .textSelectable(TextSelectableMode.SELECTABLE_FOCUSABLE)
+                  .onTextSelectionChange((start: number, end: number): void => {
+                    if (start >= 0 && end > start) { this.onSelect(); }
+                  })
               }, (line: string, index: number): string => this.message.id + '-log-' + index + '-' + line)
             }.width('100%').padding(8).backgroundColor('#F6F7F9').borderRadius(6)
           }
@@ -104,6 +113,8 @@ struct Index {
   @State now: number = Date.now();
   @State keyboardLabel: string = '读取输入法…';
   @State keyboardNotice: string = '';
+  @State taskNotice: string = '';
+  @State taskNoticeStatus: string = '';
   @State hdcIp: string = '127.0.0.1';
   @State hdcPort: string = '8710';
   @State plannerUrl: string = '';
@@ -116,6 +127,7 @@ struct Index {
   private nextId: number = 1;
   private timer: number = -1;
   private scrollTimer: number = -1;
+  private taskNoticeTimer: number = -1;
   private following: boolean = true;
   private userScrolling: boolean = false;
   private scroller: Scroller = new Scroller();
@@ -146,6 +158,7 @@ struct Index {
     if (this.runner !== null) { this.runner.cancel(); }
     clearInterval(this.timer);
     clearTimeout(this.scrollTimer);
+    clearTimeout(this.taskNoticeTimer);
     this.keyboardDialog.close();
     try { inputMethod.getSetting().off('imeChange', this.imeChanged); } catch (e) { /* 页面已退出。 */ }
   }
@@ -163,17 +176,7 @@ struct Index {
       this.refreshKeyboard();
       this.keyboardDialog.open();
     } catch (e) {
-      this.keyboardNotice = '无法打开选择框，请通过“系统设置”切换。';
-      Logger.warn((e as Error).message);
-    }
-  }
-
-  private async keyboardSettings(): Promise<void> {
-    try {
-      await PhoneInputMethod.openSettings();
-      this.keyboardNotice = '请在系统设置中管理输入法。只有英文键盘时，需要先安装中文输入法。';
-    } catch (e) {
-      this.keyboardNotice = '无法打开输入法设置，请到系统设置中启用中文输入法。';
+      this.keyboardNotice = '无法打开输入法选择框，请稍后重试。';
       Logger.warn((e as Error).message);
     }
   }
@@ -247,6 +250,7 @@ struct Index {
   }
 
   private async runTask(task: string): Promise<void> {
+    this.hideTaskNotice();
     this.running = true;
     this.stopping = false;
     let id = this.nextId++;
@@ -291,8 +295,28 @@ struct Index {
       this.stopping = false;
       this.runner = null;
       this.phase = '空闲';
+      this.showTaskNotice(result, task);
       this.refreshKeyboard();
     }
+  }
+
+  private hideTaskNotice(): void {
+    clearTimeout(this.taskNoticeTimer);
+    this.taskNoticeTimer = -1;
+    this.getUIContext().animateTo({ duration: 180, curve: Curve.EaseIn }, (): void => {
+      this.taskNotice = '';
+    });
+  }
+
+  private showTaskNotice(result: AgentRunResult, task: string): void {
+    clearTimeout(this.taskNoticeTimer);
+    this.taskNoticeStatus = result.status;
+    let label = result.status === 'success' ? '任务已完成' :
+      (result.status === 'cancelled' ? '任务已取消' : (result.status === 'suspended' ? '任务已暂停' : '任务执行失败'));
+    this.getUIContext().animateTo({ duration: 200, curve: Curve.EaseOut }, (): void => {
+      this.taskNotice = label + '：' + task;
+    });
+    this.taskNoticeTimer = setTimeout((): void => { this.hideTaskNotice(); }, 2000);
   }
 
   private stop(): void {
@@ -325,7 +349,8 @@ struct Index {
     }.padding(12).width('100%').backgroundColor('#FAFAFA')
   }
 
-  build() {
+  @Builder
+  mainContent() {
     Column() {
       Row() {
         Text('ClawMate Core').fontSize(16).fontWeight(FontWeight.Bold).layoutWeight(1)
@@ -341,7 +366,8 @@ struct Index {
               .fontSize(14).fontColor('#6B7280').padding(20)
           }
           ForEach(this.messages, (message: ChatMessage): void => {
-            ChatMessageView({ message: message, now: this.now, onToggle: (id: number): void => {
+            ChatMessageView({ message: message, now: this.now,
+              onSelect: (): void => { this.following = false; }, onToggle: (id: number): void => {
               this.following = false;
               this.updateMessage(id, (item: ChatMessage): void => { item.collapsed = !item.collapsed; });
             } })
@@ -359,8 +385,6 @@ struct Index {
         Text(this.keyboardLabel).fontSize(11).fontColor('#6B7280').layoutWeight(1)
         Button('切换输入法').fontSize(11).height(28).enabled(!this.running)
           .onClick((): void => { this.chooseKeyboard(); })
-        Button('系统设置').fontSize(11).height(28).enabled(!this.running)
-          .onClick((): void => { this.keyboardSettings(); })
       }.width('100%').padding({ left: 12, right: 12, top: 4, bottom: 4 })
       if (this.keyboardNotice) {
         Text(this.keyboardNotice).fontSize(12).fontColor('#8A6D3B').padding(8)
@@ -368,6 +392,7 @@ struct Index {
       Row({ space: 8 }) {
         TextInput({ text: this.inputText, placeholder: '输入任务（支持中文）' })
           .type(InputType.Normal).fontSize(15).layoutWeight(1).height(42).enabled(!this.running)
+          .copyOption(CopyOptions.LocalDevice)
           .onChange((value: string): void => { this.inputText = value; })
           .onSubmit((): void => { this.send(); })
         if (this.running) {
@@ -379,5 +404,26 @@ struct Index {
         }
       }.width('100%').padding({ left: 10, right: 10, top: 4, bottom: 12 })
     }.width('100%').height('100%').backgroundColor('#FAFAFC')
+  }
+
+  build() {
+    Stack({ alignContent: Alignment.Top }) {
+      this.mainContent()
+      if (this.taskNotice) {
+        Row({ space: 10 }) {
+          Text(this.taskNoticeStatus === 'success' ? '✓' : '!')
+            .fontSize(20).fontWeight(FontWeight.Bold)
+            .fontColor(this.taskNoticeStatus === 'success' ? '#166534' : '#8A6D3B')
+          Text(this.taskNotice).fontSize(14).layoutWeight(1)
+            .maxLines(2).textOverflow({ overflow: TextOverflow.Ellipsis })
+            .fontColor(this.taskNoticeStatus === 'success' ? '#166534' : '#8A6D3B')
+        }.width('92%').constraintSize({ maxWidth: 520 }).height(56)
+        .padding({ left: 16, right: 16 }).margin({ top: 8 })
+        .backgroundColor(this.taskNoticeStatus === 'success' ? '#EAF7EE' : '#FFF7E6')
+        .borderRadius(12).shadow({ radius: 12, color: '#26000000', offsetY: 3 })
+        .hitTestBehavior(HitTestMode.None)
+        .transition(TransitionEffect.move(TransitionEdge.TOP).combine(TransitionEffect.OPACITY))
+      }
+    }.width('100%').height('100%')
   }
 }

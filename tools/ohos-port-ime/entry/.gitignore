@@ -1,0 +1,12 @@
+# from HUAWEI DevEco Studio/IDEA
+*.iml
+.idea
+local.properties
+
+# from gradle
+.gradle/
+build/
+.cxx
+
+# from Mac
+.DS_Store

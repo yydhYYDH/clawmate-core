@@ -1,0 +1,6 @@
+{
+  "name": "libime_pinyin.so",
+  "types": "./pinyin.d.ts",
+  "version": "ime_pinyin",
+  "description": "ime_pinyin"
+}

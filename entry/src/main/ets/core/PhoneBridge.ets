@@ -17,6 +17,7 @@ import { readSelfHdcNetworks } from './selfhdc/SelfHdcNetwork';
 import { HdcBridgeResponse, WorkflowJsonMap } from './WorkflowTypes';
 import { AppRuntime } from './AppRuntime';
 import { EndpointConfig } from './EndpointConfig';
+import { returnToHost } from './HostAppReturn';
 
 // self-HDC 桥：App 直接连本机 hdcd，用 shell 命令截图/触控/拉起应用。
 export class PhoneBridge {
@@ -124,12 +125,7 @@ export class PhoneBridge {
   }
 
   async returnHost(): Promise<void> {
-    try {
-      let context = AppRuntime.getContext();
-      await context.startAbility({ bundleName: AppRuntime.bundleName(), abilityName: context.abilityInfo.name });
-    } catch (e) {
-      this.log('RETURN_APP_FAILED: ' + (e as Error).message + '；请手动返回 ClawMate');
-    }
+    await returnToHost(this.config, this.filesDir, this.log);
   }
 
   async close(): Promise<void> {
