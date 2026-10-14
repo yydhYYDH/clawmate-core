@@ -232,7 +232,8 @@ export class InputHandler {
         // 需要替换的字符串
         this.mTextInputClient!.insertText(csZns[idx])
 
-      } else if (isChinese && !isSelText) {
+      // Literal digits bypass the pinyin decoder; hardware candidate selection is handled above.
+      } else if (isChinese && !isSelText && !/^[0-9]+$/.test(text)) {
         this.onKeyClick(text, 0);
       } else if (isSelText) {
         this.chooseCandidate(selNum);

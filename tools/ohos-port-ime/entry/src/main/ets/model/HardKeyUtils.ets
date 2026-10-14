@@ -13,7 +13,13 @@
  * limitations under the License.
  */
 
+import { KeyCode } from '@ohos.multimodalInput.keyCode';
+
 export function GetHardKeyValue(keyCode: number, isShift: boolean): string {
+  // The numeric keypad uses different codes from the top digit row.
+  if (keyCode >= KeyCode.KEYCODE_NUMPAD_0 && keyCode <= KeyCode.KEYCODE_NUMPAD_9) {
+    return String(keyCode - KeyCode.KEYCODE_NUMPAD_0);
+  }
   let keyList: Map<number, string> = new Map<number, string>();
   keyList.set(2000, '0');
   keyList.set(2001, '1');
