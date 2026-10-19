@@ -1,0 +1,12 @@
+{
+  "string": [
+    {
+      "name": "app_name",
+      "value": "RoboPi 浏览器"
+    },
+    {
+      "name": "module_desc",
+      "value": "ArkWeb browser for RoboPi"
+    }
+  ]
+}

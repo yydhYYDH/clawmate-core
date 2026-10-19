@@ -1,0 +1,6 @@
+{
+  "modelVersion": "6.0.2",
+  "description": "RoboPi ArkWeb browser for OpenHarmony 5.1",
+  "dependencies": {},
+  "devDependencies": {}
+}
