@@ -17,9 +17,10 @@
 GUI Agent 通过截图观察页面，让多模态模型决定下一步，再执行点击、输入或滑动。它可以通过界面完成操作，不要求每个目标 App 都提供业务 API。
   
 ClawMate 的执行流程如下：
-  
 
-![](../assets/26633665722cc37b308ce046eaaeeb560.png)  
+<p align="center" style="text-align: center;">
+  <img src="../assets/26633665722cc37b308ce046eaaeeb560.png" alt="ClawMate 执行流程图" width="200" style="max-width: 100%; height: auto;">
+</p>
   
 其中，**Planner** 负责规划，**Decider** 负责看图决策，**Host** 是接收指令和展示结果的助手 App。**Self-HDC** 指 App 连接本机调试服务执行设备操作；课程设备上运行时无需电脑代为点击，但模型请求仍需要可达的模型服务。**HAP** 是应用安装包。
   
