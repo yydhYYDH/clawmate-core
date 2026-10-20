@@ -42,7 +42,10 @@ export function parseAction(text: string): Action {
   if (item === null || typeof item !== 'object') { throw new Error('动作回复必须是 JSON 对象。'); }
   let allowed = ['click', 'swipe', 'input', 'open_app', 'back', 'home', 'wait', 'done'];
   if (allowed.indexOf(item.action) < 0) { throw new Error('不支持的模型动作。'); }
-  if (item.action === 'click' || item.action === 'swipe') {
+  if (item.target !== undefined && (item.action !== 'click' || typeof item.target !== 'string' || !item.target.trim() || item.target.length > 80)) {
+    throw new Error('target 必须是当前界面提供的按钮标识，只能用于 click。');
+  }
+  if ((item.action === 'click' && item.target === undefined) || item.action === 'swipe') {
     let coordinates: (number | undefined)[] = [item.x, item.y];
     if (item.action === 'swipe') { coordinates.push(item.x2, item.y2); }
     for (let value of coordinates) {

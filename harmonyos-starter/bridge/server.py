@@ -35,6 +35,49 @@ def coordinate(value, extent):
     return min(extent - 1, round(value / 1000 * (extent - 1)))
 
 
+def screen_targets(tree, width, height):
+    """Read button centers in the focused app, in the screenshot coordinate system."""
+    targets = []
+    if width <= 1 or height <= 1:
+        return targets
+
+    def visible(attributes):
+        return attributes.get('visible', 'true') != 'false' and attributes.get('enabled', 'true') != 'false'
+
+    def label(node):
+        attributes = node.get('attributes', {})
+        if not visible(attributes):
+            return ''
+        text = attributes.get('text', '').strip()
+        if text:
+            return text
+        return ' '.join(filter(None, (label(child) for child in node.get('children', []))))
+
+    def visit(node):
+        attributes = node.get('attributes', {})
+        if not visible(attributes) or len(targets) >= 60:
+            return
+        if attributes.get('type') == 'Button' and attributes.get('clickable') == 'true':
+            text = label(node)
+            bounds = re.fullmatch(r'\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\]', attributes.get('bounds', ''))
+            if bounds:
+                left, top, right, bottom = map(int, bounds.groups())
+                # Only offer fully visible targets: a clipped control's center may be occluded.
+                if 0 <= left < right <= width and 0 <= top < bottom <= height:
+                    targets.append({'id': 't' + str(len(targets)), 'label': text[:160],
+                                    'x': ((left + right) // 2) / (width - 1) * 1000,
+                                    'y': ((top + bottom) // 2) / (height - 1) * 1000})
+                    return
+        for child in node.get('children', []):
+            visit(child)
+
+    for root in tree.get('children', []):
+        attributes = root.get('attributes', {})
+        if attributes.get('focused') == 'true' and attributes.get('bundleName') != 'com.ohos.sceneboard':
+            visit(root)
+    return targets
+
+
 def image_size(data):
     if data.startswith(b'\x89PNG\r\n\x1a\n') and len(data) >= 24:
         width, height = struct.unpack('>II', data[16:24])
@@ -142,7 +185,25 @@ class Device:
                     raise BridgeError('Capture file is missing, empty or exceeds 12 MiB.', 502)
                 data = path.read_bytes()
             mime, width, height = image_size(data)
-            return {'base64': base64.b64encode(data).decode(), 'mime': mime, 'width': width, 'height': height}
+            targets = []
+            layout_remote = remote + '.json'
+            try:
+                self.shell(['uitest', 'dumpLayout', '-p', layout_remote], stop)
+                with tempfile.TemporaryDirectory(prefix='clawmate-targets-') as folder:
+                    path = Path(folder) / 'layout.json'
+                    self.run(['file', 'recv', layout_remote, str(path)], stop)
+                    if path.stat().st_size <= 4 * 1024 * 1024:
+                        targets = screen_targets(json.loads(path.read_text()), width, height)
+            except Exception:
+                # Some apps expose no UI tree; retain screenshot-based coordinates for those apps.
+                pass
+            finally:
+                try:
+                    self.shell(['rm', '-f', layout_remote], timeout=3)
+                except Exception:
+                    pass
+            return {'base64': base64.b64encode(data).decode(), 'mime': mime, 'width': width, 'height': height,
+                    'targets': targets}
         finally:
             try:
                 self.shell(['rm', '-f', remote], timeout=3)
@@ -155,6 +216,7 @@ class SessionState:
         self.id = secrets.token_urlsafe(24)
         self.stop = threading.Event()
         self.geometry = None
+        self.targets = {}
         self.lock = threading.Lock()
         self.expires_at = time.monotonic() + 180
         self.timer = threading.Timer(180, self.stop.set)
@@ -237,12 +299,16 @@ class Bridge:
                 if target is None:
                     raise BridgeError('Application is not in the configured allowlist.')
                 self.device.launch(target, session.stop)
+                if session.stop.wait(0.6):
+                    raise BridgeError('Session cancelled.', 409)
                 session.geometry = None
+                session.targets = {}
                 return {'message': 'Launch accepted; inspect the next screenshot.'}
             if route == '/screen':
                 result = self.device.screenshot(session.stop)
                 self.check(session)
                 session.geometry = (result['width'], result['height'])
+                session.targets = {target['id']: target for target in result.get('targets', [])}
                 return result
             if route == '/action':
                 return self.action(session, body.get('action'))
@@ -252,6 +318,7 @@ class Bridge:
         if not isinstance(action, dict):
             raise BridgeError('Action must be an object.')
         kind = action.get('action')
+        detail = ''
         if kind not in ('click', 'swipe', 'input', 'back', 'home', 'wait'):
             raise BridgeError('Unsupported action.')
         if kind == 'wait':
@@ -263,7 +330,16 @@ class Bridge:
                 if session.geometry is None:
                     raise BridgeError('Capture a screen before a coordinate action.')
                 width, height = session.geometry
-                command += [kind, coordinate(action.get('x'), width), coordinate(action.get('y'), height)]
+                x, y = action.get('x'), action.get('y')
+                if 'target' in action:
+                    if kind != 'click' or not isinstance(action['target'], str) or action['target'] not in session.targets:
+                        raise BridgeError('Click target is absent from the current screen.')
+                    target = session.targets[action['target']]
+                    x, y = target['x'], target['y']
+                    detail = ' target=' + target['label'][:40]
+                px, py = coordinate(x, width), coordinate(y, height)
+                command += [kind, px, py]
+                detail += f' normalized=({x:.1f},{y:.1f}) pixels=({px},{py}) screen={width}x{height}'
                 if kind == 'swipe':
                     command += [coordinate(action.get('x2'), width), coordinate(action.get('y2'), height), 600]
             elif kind == 'input':
@@ -278,8 +354,9 @@ class Bridge:
             # Do not race a screenshot against an unfinished UI transition.
             if session.stop.wait(0.6):
                 raise BridgeError('Session cancelled.', 409)
-            session.geometry = None
-        return {'message': kind + ' submitted; outcome requires a fresh screenshot.'}
+        session.geometry = None
+        session.targets = {}
+        return {'message': kind + detail + ' submitted; outcome requires a fresh screenshot.'}
 
 
 def handler_for(bridge, token):

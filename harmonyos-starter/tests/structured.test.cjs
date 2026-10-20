@@ -40,11 +40,32 @@ test('pixel coordinates, missing fields and empty terminal results cannot bypass
   assert.throws(()=>parseAction('{"action":"done","status":"success","summary":123}'),/summary/);
 });
 
+test('labelled click supports target IDs without coordinates and rejects malformed target actions', () => {
+  assert.deepEqual(parseAction('{"action":"click","target":"t1"}'),{action:'click',target:'t1'});
+  for (const action of [{action:'click',target:''},{action:'click',target:123},{action:'swipe',target:'t1'},
+    {action:'home',target:'t1'}]) assert.throws(()=>parseAction(JSON.stringify(action)),/target/);
+});
+
 test('persistent malformed replies stop after two corrections with a readable error', async () => {
   const h = harness(Array(3).fill('{"action":"click","x":143,675}'));
   await assert.rejects(h.run(),/模型连续返回无效操作.*合法 JSON/);
   assert.equal(h.requests.length,3);
   assert.equal(h.logs.length,2);
+});
+
+test('unlabelled icons are retried with numeric coordinates instead of repeating an invented target', async () => {
+  const requests=[];
+  const replies=['{"action":"click","target":"×"}','{"action":"click","x":618,"y":447}'];
+  const load=loader({'core/ModelService':{complete:async(settings,body)=>{
+    requests.push(JSON.parse(JSON.stringify(body)));return replies.shift();
+  }}});
+  const action=await load('core/StructuredModel').structuredModel({}, {messages:[]},new RunScope(),text=>{
+    const item=parseAction(text);
+    if(item.target)throw Error('点击目标“×”不在当前屏幕按钮列表中或不唯一');
+    return item;
+  },{log(){},phase(){}});
+  assert.deepEqual(action,{action:'click',x:618,y:447});
+  assert.match(requests[1].messages.at(-1).content,/不得再使用 target 字段/);
 });
 
 test('network errors and cancellation during correction do not trigger additional requests', async () => {
@@ -78,4 +99,25 @@ test('GUI correction never executes bad actions and returns host with the verifi
   assert.deepEqual(events,['start','screen',{action:'click',x:143,y:675},'screen','cancel','return','close']);
   assert.match(bodies[1].messages[1].content[0].text,/原始用户任务：输入14×13/);
   assert.doesNotMatch(bodies[1].messages[1].content[0].text,/rewritten task/);
+});
+
+test('model selects measured button labels and a stale target is regenerated before execution', async () => {
+  const actions = [];
+  const bodies = [];
+  const replies = ['{"bundle":"calc","task":"输入15*13"}', '{"action":"click","target":"stale"}',
+    '{"action":"click","target":"1"}', '{"action":"done","status":"success","summary":"15×13=195"}'];
+  const load=loader({'core/ModelService':{complete:async(settings,body)=>{
+    bodies.push(JSON.parse(JSON.stringify(body)));return replies.shift();
+  }}});
+  const device={
+    open:async()=>({screenshot:true,actions:true,apps:[{bundle:'calc'}]}),startApp:async()=>{},
+    screenshot:async()=>({base64:'AAAA',mime:'image/png',width:1256,height:2760,
+      targets:[{id:'t1',label:'1',x:144,y:786},{id:'t3',label:'3',x:618,y:786}]}),
+    execute:async action=>{actions.push(action);return 'target=1';},cancel:async()=>{},returnHost:async()=>{},close:async()=>{}
+  };
+  const result=await new(load('core/AgentRunner').AgentRunner)({model:'test'},device)
+    .run('输入15*13',new RunScope(),{log(){},phase(){}});
+  assert.equal(result.message,'15×13=195');
+  assert.deepEqual(actions,[{action:'click',target:'t1'}]);
+  assert.match(bodies[1].messages[1].content[0].text,/"label":"1"/);
 });

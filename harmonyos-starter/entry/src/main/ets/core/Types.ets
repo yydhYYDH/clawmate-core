@@ -50,10 +50,12 @@ export interface ModelResponse { choices?: ModelChoice[]; }
 export interface BridgeApp { name: string; bundle: string; ability: string; }
 export interface Capabilities { screenshot: boolean; actions: boolean; apps: BridgeApp[]; reason: string; }
 export interface Session { id: string; }
-export interface Screenshot { base64: string; mime: string; width: number; height: number; }
+export interface ScreenTarget { id: string; label: string; x: number; y: number; }
+export interface Screenshot { base64: string; mime: string; width: number; height: number; targets?: ScreenTarget[]; }
 export interface Plan { bundle: string; task: string; }
 export interface Action {
   action: string;
+  target?: string;
   bundle?: string;
   x?: number;
   y?: number;

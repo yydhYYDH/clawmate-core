@@ -26,7 +26,8 @@ class FakeDevice:
         self.commands.append(('launch', app['bundle']))
 
     def screenshot(self, stop):
-        return {'base64': base64.b64encode(PNG).decode(), 'mime': 'image/png', 'width': 800, 'height': 1280}
+        return {'base64': base64.b64encode(PNG).decode(), 'mime': 'image/png', 'width': 800, 'height': 1280,
+                'targets': [{'id': 't0', 'label': '1', 'x': 144, 'y': 786}]}
 
     def shell(self, command, stop):
         self.commands.append(command)
@@ -59,6 +60,39 @@ class BridgeTests(unittest.TestCase):
             with self.assertRaises(module.BridgeError):
                 self.bridge.dispatch(route, body)
         self.assertEqual(self.device.commands, [])
+
+    def test_labelled_target_click_uses_measured_center_and_is_invalidated_after_input(self):
+        self.bridge.dispatch('/screen', self.body())
+        result = self.bridge.dispatch('/action', self.body(action={'action': 'click', 'target': 't0', 'x': 618, 'y': 786}))
+        self.assertEqual(self.device.commands[-1], ['uitest', 'uiInput', 'click', 115, 1005])
+        self.assertIn('target=1', result['message'])
+        self.assertIn('pixels=(115,1005)', result['message'])
+        with self.assertRaises(module.BridgeError):
+            self.bridge.dispatch('/action', self.body(action={'action': 'click', 'target': 't0'}))
+        self.bridge.dispatch('/screen', self.body())
+        with self.assertRaises(module.BridgeError):
+            self.bridge.dispatch('/action', self.body(action={'action': 'click', 'target': 'invented'}))
+
+    def test_ui_targets_use_full_screen_bounds_and_ignore_hidden_disabled_and_status_bar(self):
+        def button(text, bounds, **attributes):
+            return {'attributes': {'type': 'Button', 'clickable': 'true', 'bounds': bounds, **attributes},
+                    'children': [{'attributes': {'type': 'Text', 'text': text}}]}
+        tree = {'children': [
+            {'attributes': {'bundleName': 'calc', 'focused': 'true'}, 'children': [
+                button('1', '[59,2047][304,2290]'), button('3', '[654,2047][899,2290]'),
+                button('', '[654,1112][899,1354]'),
+                button('hidden', '[0,0][50,50]', visible='false'),
+                button('disabled', '[0,0][50,50]', enabled='false'),
+                button('clipped', '[-10,0][50,50]')]},
+            {'attributes': {'bundleName': 'com.ohos.sceneboard', 'focused': 'true'},
+             'children': [button('private notification', '[0,0][50,50]')]}
+        ]}
+        targets = module.screen_targets(tree, 1256, 2760)
+        self.assertEqual([target['label'] for target in targets], ['1', '3', ''])
+        self.assertEqual(module.coordinate(targets[0]['x'], 1256), 181)
+        self.assertEqual(module.coordinate(targets[0]['y'], 2760), 2168)
+        self.assertEqual(module.coordinate(targets[1]['x'], 1256), 776)
+        self.assertEqual(module.screen_targets(tree, 1, 1), [])
 
     def test_cancel_prevents_future_actions_but_allows_return_and_close(self):
         self.bridge.dispatch('/session/cancel', self.body())
