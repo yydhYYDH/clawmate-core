@@ -1,0 +1,6 @@
+{
+  "host": { "name": "ClawMate Lab", "bundle": "com.clawmate.harmonystarter", "ability": "EntryAbility" },
+  "apps": [
+    { "name": "请替换为已在 Pura 80 验证的应用", "bundle": "com.example.replace_me", "ability": "EntryAbility" }
+  ]
+}

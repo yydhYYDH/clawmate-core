@@ -3,6 +3,18 @@
     // 签名信息请在本机 DevEco Studio 中配置（File → Project Structure → Signing Configs）。
     // 目标设备为 OpenHarmony 5.1.0 (API 18)，故使用 OpenHarmony runtimeOS。
     "signingConfigs": [
+      {
+        "name": "default",
+        "material": {
+          "certpath": "/Users/bingyubai/.ohos/config/openharmony/default_clawmate-core_jlM5uvZWe3pEvNxU80B8AJEMv16MO-whxOyE3QO8eYQ=.cer",
+          "keyAlias": "debugKey",
+          "keyPassword": "0000001B5042E8DC1E99B2B14BB4D83B19AB7E04DAED2DA41D4A8ECE34A95FB5F0BA04B37858F34EB1FE00",
+          "profile": "/Users/bingyubai/.ohos/config/openharmony/default_clawmate-core_jlM5uvZWe3pEvNxU80B8AJEMv16MO-whxOyE3QO8eYQ=.p7b",
+          "signAlg": "SHA256withECDSA",
+          "storeFile": "/Users/bingyubai/.ohos/config/openharmony/default_clawmate-core_jlM5uvZWe3pEvNxU80B8AJEMv16MO-whxOyE3QO8eYQ=.p12",
+          "storePassword": "0000001B239A7AF6192132622FB76C8F6E6D6FE56EE61963D78F2B3E1D13DBC1BD7CDF7D945F7553936CCE"
+        }
+      }
     ],
     "products": [
       {

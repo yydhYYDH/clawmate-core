@@ -1,0 +1,13 @@
+local.properties
+oh_modules/
+**/oh_modules/
+.hvigor/
+**/build/
+.idea/
+*.p12
+*.p7b
+__pycache__/
+*.pyc
+bridge/apps.local.json
+bridge/token.local
+reports/

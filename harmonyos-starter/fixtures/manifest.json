@@ -1,0 +1,34 @@
+{
+  "empty.txt": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "hello-bom.txt": {
+    "bytes": 125,
+    "sha256": "59b2527d605865bf34dfd0f707ffd55e17a9d9d38b68959e1be7e3f56f5b006d"
+  },
+  "hello-zh.txt": {
+    "bytes": 122,
+    "sha256": "9b35c1e9494e636cb47653f4c97666fcd6c61b5bc2b4102166c34a160f81755a"
+  },
+  "invalid-utf8.txt": {
+    "bytes": 4,
+    "sha256": "6e153708ea1302ccc480999bda6939c7aef6dd60531b7acfff00e81bde4986ab"
+  },
+  "lab-guide.md": {
+    "bytes": 76,
+    "sha256": "1db6e9e4f708470422c346963a9116f396d85a8749c4b3770c6b1e9ad46256e1"
+  },
+  "oversize.txt": {
+    "bytes": 262145,
+    "sha256": "7a358119d340746b59b62110cefded648a92240ab6be67f6314871e3ef28b63c"
+  },
+  "photo-grid.png": {
+    "bytes": 4770,
+    "sha256": "e76d622adb5a1781863fe77601dd7e60e211e6f693c7d0793e88c1e2406731e7"
+  },
+  "unsupported.bin": {
+    "bytes": 256,
+    "sha256": "40aff2e9d2d8922e47afd4648e6967497158785fbd1da870e7110266bf944880"
+  }
+}
