@@ -1,0 +1,148 @@
+[32minstall completed in 0s 34ms[39m
+> hvigor [32mUP-TO-DATE :entry:default@PreBuild...  [39m
+> hvigor [32mFinished :entry:default@CreateModuleInfo... after 1 ms [39m
+> hvigor [32mUP-TO-DATE :entry:default@GenerateMetadata...  [39m
+> hvigor [32mFinished :entry:default@ConfigureCmake... after 1 ms [39m
+> hvigor [32mUP-TO-DATE :entry:default@MergeProfile...  [39m
+> hvigor [32mUP-TO-DATE :entry:default@CreateBuildProfile...  [39m
+> hvigor [32mFinished :entry:default@PreCheckSyscap... after 1 ms [39m
+> hvigor [32mUP-TO-DATE :entry:default@GeneratePkgContextInfo...  [39m
+> hvigor [32mFinished :entry:default@GeneratePkgSdkInfo... after 1 ms [39m
+> hvigor [32mFinished :entry:default@ProcessIntegratedHsp... after 1 ms [39m
+> hvigor [32mFinished :entry:default@BuildNativeWithCmake... after 1 ms [39m
+> hvigor [32mUP-TO-DATE :entry:default@MakePackInfo...  [39m
+> hvigor [32mUP-TO-DATE :entry:default@SyscapTransform...  [39m
+> hvigor [32mUP-TO-DATE :entry:default@ProcessProfile...  [39m
+> hvigor [32mUP-TO-DATE :entry:default@ProcessRouterMap...  [39m
+> hvigor [32mUP-TO-DATE :entry:default@ProcessShareConfig...  [39m
+> hvigor [32mFinished :entry:default@ProcessStartupConfig... after 1 ms [39m
+> hvigor [32mFinished :entry:default@BuildNativeWithNinja... after 1 ms [39m
+> hvigor [32mUP-TO-DATE :entry:default@ProcessResource...  [39m
+> hvigor [32mUP-TO-DATE :entry:default@GenerateLoaderJson...  [39m
+> hvigor [32mUP-TO-DATE :entry:default@ProcessLibs...  [39m
+> hvigor [32mUP-TO-DATE :entry:default@CompileResource...  [39m
+> hvigor [32mUP-TO-DATE :entry:default@DoNativeStrip...  [39m
+> hvigor [32mFinished :entry:default@BuildJS... after 1 ms [39m
+> hvigor [32mUP-TO-DATE :entry:default@CacheNativeLibs...  [39m
+> hvigor [91mERROR: Failed :entry:default@CompileArkTS... [39m
+> hvigor [33mWARN: 
+[33m1 WARN: [33m[33mArkTS:WARN: For details about ArkTS syntax errors, see FAQs[39m[39m
+[33m2 WARN: [33m[33mArkTS:WARN File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/Runtime.ets:24:19
+ The system capacity of this api 'backgroundTaskManager' is not supported on all devices
+[39m[39m
+[33m3 WARN: [33m[33mArkTS:WARN File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/Runtime.ets:47:13
+ The system capacity of this api 'backgroundTaskManager' is not supported on all devices
+[39m[39m
+[33m4 WARN: [33m[33mArkTS:WARN File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/Files.ets:17:24
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33m5 WARN: [33m[33mArkTS:WARN File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/Files.ets:30:22
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33m6 WARN: [33m[33mArkTS:WARN File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/Files.ets:32:24
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33m7 WARN: [33m[33mArkTS:WARN File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/Files.ets:38:27
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33m8 WARN: [33m[33mArkTS:WARN File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/Files.ets:45:23
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33m9 WARN: [33m[33mArkTS:WARN File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/Files.ets:49:22
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33m10 WARN: [33m[33mArkTS:WARN File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/Files.ets:53:27
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33m11 WARN: [33m[33mArkTS:WARN File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/Files.ets:57:23
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33m12 WARN: [33m[33mArkTS:WARN File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/Repository.ets:16:23
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33m13 WARN: [33m[33mArkTS:WARN File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/Repository.ets:19:30
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33m14 WARN: [33m[33mArkTS:WARN File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/Repository.ets:20:27
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33m15 WARN: [33m[33mArkTS:WARN File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/Repository.ets:21:27
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33m16 WARN: [33m[33mArkTS:WARN File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/Repository.ets:22:30
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33m17 WARN: [33m[33mArkTS:WARN File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/Repository.ets:27:23
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33m18 WARN: [33m[33mArkTS:WARN File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/Repository.ets:28:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33m19 WARN: [33m[33mArkTS:WARN File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/Repository.ets:29:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33m20 WARN: [33m[33mArkTS:WARN File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/Repository.ets:30:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33m21 WARN: [33m[33mArkTS:WARN File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/Repository.ets:31:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33m22 WARN: [33m[33mArkTS:WARN File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/Repository.ets:33:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33m23 WARN: [33m[33mArkTS:WARN File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/Repository.ets:38:17
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33m24 WARN: [33m[33mArkTS:WARN File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/Repository.ets:63:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33m25 WARN: [33m[33mArkTS:WARN File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/OpenHarmonySelfHdcExecutor.ets:104:30
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33m26 WARN: [33m[33mArkTS:WARN File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/pages/Index.ets:140:5
+ Function may throw exceptions. Special handling is required.
+[39m[39m[39m
+> hvigor [91mERROR: ArkTS Compiler Error
+[31m1 ERROR: [31m10605008 ArkTS Compiler Error
+[31mError Message: Use explicit types instead of "any", "unknown" (arkts-no-any-unknown) At File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/SelfHdcClient.ets:42:11
+[31m[39m
+[39m
+[31m2 ERROR: [31m10605034 ArkTS Compiler Error
+[31mError Message: Type inference in case of generic function calls is limited (arkts-no-inferred-generic-params) At File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/SelfHdcClient.ets:52:13
+[31m[39m
+[39m
+[31m3 ERROR: [31m10605034 ArkTS Compiler Error
+[31mError Message: Type inference in case of generic function calls is limited (arkts-no-inferred-generic-params) At File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/SelfHdcClient.ets:53:13
+[31m[39m
+[39m
+[31m4 ERROR: [31m10605034 ArkTS Compiler Error
+[31mError Message: Type inference in case of generic function calls is limited (arkts-no-inferred-generic-params) At File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/SelfHdcClient.ets:83:11
+[31m[39m
+[39m
+[31m5 ERROR: [31m10605008 ArkTS Compiler Error
+[31mError Message: Use explicit types instead of "any", "unknown" (arkts-no-any-unknown) At File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/SelfHdcClient.ets:116:9
+[31m[39m
+[39m
+[31mCOMPILE RESULT:FAIL {ERROR:6 WARN:26}[39m
+
+[31m* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --debug option to get more log output.
+[39m
+[31m
+FAILURE: Build completed with 1 failure.[31m[39m
+[31m
+1: Task failed with an exception.
+-----------
+* What went wrong:
+Execution failed for task 'default@CompileArkTS'.
+  > Compilation error. See log for more details
+
+[31m* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --debug option to get more log output.
+[31m[39m
+[31m================================================================================[31m[39m
+> hvigor [91mERROR: BUILD FAILED in 5 s 692 ms [39m
+
+25 tasks in total: 9 executed, 16 up-to-date

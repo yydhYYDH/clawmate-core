@@ -1,0 +1,17 @@
+{
+  "DevEco": "26.0.0",
+  "build": "DS-261.23567.138.36.2600851",
+  "node": "v24.14.1",
+  "java": "openjdk version \"25.0.2\" 2026-01-20\nOpenJDK Runtime Environment JBR-25.0.2+10-329.117-nomod (build 25.0.2+10-b329.117)\nOpenJDK 64-Bit Server VM JBR-25.0.2+10-329.117-nomod (build 25.0.2+10-b329.117, mixed mode, sharing)",
+  "OH_ETS_SDK": {
+    "apiVersion": "23",
+    "displayName": "Ets",
+    "meta": {
+      "metaVersion": "3.0.0"
+    },
+    "path": "ets",
+    "releaseType": "Release",
+    "version": "6.1.0.32"
+  },
+  "HDC": "Ver: 3.2.0c"
+}

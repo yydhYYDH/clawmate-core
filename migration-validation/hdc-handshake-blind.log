@@ -1,0 +1,40 @@
+✖ AUTH_OK then channel-0 close must be acknowledged before first shell command (36.794917ms)
+✖ AUTH_OK carrying DAEMON_UNAUTH is not authorization to issue commands (26.136709ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 0
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 200.843541
+
+✖ failing tests:
+
+test at migration-validation/hdc-handshake.test.cjs:42:1
+✖ AUTH_OK then channel-0 close must be acknowledged before first shell command (36.794917ms)
+  AssertionError [ERR_ASSERTION]: open resolved without ACK of the daemon authentication channel close
+      at TestContext.<anonymous> (/Users/bingyubai/clawmate-core/migration-validation/hdc-handshake.test.cjs:46:12)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:358:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at migration-validation/hdc-handshake.test.cjs:51:1
+✖ AUTH_OK carrying DAEMON_UNAUTH is not authorization to issue commands (26.136709ms)
+  AssertionError [ERR_ASSERTION]: Missing expected rejection.
+      at async TestContext.<anonymous> (/Users/bingyubai/clawmate-core/migration-validation/hdc-handshake.test.cjs:53:8)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:787:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /auth|认证|授权|rejected|UNAUTH/i,
+    operator: 'rejects',
+    diff: 'simple'
+  }

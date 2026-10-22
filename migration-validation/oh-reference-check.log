@@ -1,0 +1,23 @@
+✔ terminal outcomes never promote failed, aborted, suspended or unspecified done to success (423.845166ms)
+✔ every planner app name resolves to the same OpenHarmony bundle; explicit bundles still work (29.330042ms)
+✔ initialization failure releases partially opened bridge (222.268583ms)
+✔ cancelling planner wait releases resources and does not launch an app (145.394042ms)
+✔ late decider response after cancellation cannot issue device actions (97.352542ms)
+✔ failed model outcome propagates to caller as failed (79.977291ms)
+✔ HTTP cancellation settles even when destroy produces no request callback (72.129291ms)
+✔ body receipts follow successful actions and terminal outcome follows the next screenshot (668.018208ms)
+✔ returning to host uses ability API first and avoids an unnecessary HDC connection (14.120625ms)
+✔ background launch denial falls back to an independent self-HDC connection and releases it (8.1895ms)
+✔ return failure is logged without overwriting task outcome and always closes fallback connection (10.366458ms)
+✔ input-method settings fall back to system Settings when device has no config ability (2.629708ms)
+✔ both digit rows insert all ten digits in Chinese and English mode without candidates (584.803333ms)
+✔ digits 1–7 select a Chinese candidate on either digit row, including subsequent pages (694.647ms)
+✔ unavailable candidate digits insert text; pinyin letters still reach the decoder (28.368416ms)
+ℹ tests 15
+ℹ suites 0
+ℹ pass 15
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2085.464958

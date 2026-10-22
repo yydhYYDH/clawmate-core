@@ -1,0 +1,129 @@
+[32minstall completed in 0s 35ms[39m
+> hvigor [32mFinished :entry:default@PreBuild... after 78 ms [39m
+> hvigor [32mFinished :entry:default@CreateModuleInfo... after 1 ms [39m
+> hvigor [32mFinished :entry:default@GenerateMetadata... after 2 ms [39m
+> hvigor [32mFinished :entry:default@ConfigureCmake... after 1 ms [39m
+> hvigor [32mFinished :entry:default@MergeProfile... after 19 ms [39m
+> hvigor [32mUP-TO-DATE :entry:default@CreateBuildProfile...  [39m
+> hvigor [32mFinished :entry:default@PreCheckSyscap... after 1 ms [39m
+> hvigor [32mUP-TO-DATE :entry:default@GeneratePkgContextInfo...  [39m
+> hvigor [32mFinished :entry:default@GeneratePkgSdkInfo... after 1 ms [39m
+> hvigor [32mFinished :entry:default@ProcessIntegratedHsp... after 1 ms [39m
+> hvigor [32mFinished :entry:default@BuildNativeWithCmake... after 1 ms [39m
+> hvigor [32mFinished :entry:default@MakePackInfo... after 2 ms [39m
+> hvigor [32mUP-TO-DATE :entry:default@SyscapTransform...  [39m
+> hvigor [32mFinished :entry:default@ProcessProfile... after 59 ms [39m
+> hvigor [32mFinished :entry:default@ProcessRouterMap... after 1 ms [39m
+> hvigor [32mFinished :entry:default@ProcessShareConfig... after 1 ms [39m
+> hvigor [32mFinished :entry:default@ProcessStartupConfig... after 1 ms [39m
+> hvigor [32mFinished :entry:default@BuildNativeWithNinja... after 1 ms [39m
+> hvigor [32mUP-TO-DATE :entry:default@ProcessResource...  [39m
+> hvigor [32mFinished :entry:default@GenerateLoaderJson... after 3 ms [39m
+> hvigor [32mUP-TO-DATE :entry:default@ProcessLibs...  [39m
+> hvigor [32mFinished :entry:default@CompileResource... after 81 ms [39m
+> hvigor [32mUP-TO-DATE :entry:default@DoNativeStrip...  [39m
+> hvigor [32mFinished :entry:default@BuildJS... after 1 ms [39m
+> hvigor [32mUP-TO-DATE :entry:default@CacheNativeLibs...  [39m
+> hvigor [33mWARN: [33mWARN: [33m[33mArkTS:WARN File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/Runtime.ets:24:13
+ The system capacity of this api 'backgroundTaskManager' is not supported on all devices
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/Runtime.ets:24:75
+ The system capacity of this api 'backgroundTaskManager' is not supported on all devices
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/Runtime.ets:25:45
+ The system capacity of this api 'backgroundTaskManager' is not supported on all devices
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/Runtime.ets:41:19
+ The system capacity of this api 'backgroundTaskManager' is not supported on all devices
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/Runtime.ets:61:7
+ The system capacity of this api 'backgroundTaskManager' is not supported on all devices
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/Runtime.ets:68:13
+ The system capacity of this api 'backgroundTaskManager' is not supported on all devices
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/Files.ets:17:24
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/Files.ets:30:22
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/Files.ets:32:24
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/Files.ets:38:27
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/Files.ets:45:23
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/Files.ets:49:22
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/Files.ets:53:27
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/Files.ets:57:23
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/Repository.ets:16:23
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/Repository.ets:19:30
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/Repository.ets:20:27
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/Repository.ets:21:27
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/Repository.ets:22:30
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/Repository.ets:27:23
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/Repository.ets:28:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/Repository.ets:29:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/Repository.ets:30:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/Repository.ets:31:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/Repository.ets:33:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/Repository.ets:38:17
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/Repository.ets:63:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/OpenHarmonySelfHdcExecutor.ets:105:30
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/pages/Index.ets:143:5
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/pages/Index.ets:249:42
+ 'showOptionalInputMethods' has been deprecated.
+[39m[39m
+[39m
+> hvigor [32mFinished :entry:default@CompileArkTS... after 3 s 730 ms [39m
+> hvigor [32mFinished :entry:default@GeneratePkgModuleJson... after 1 ms [39m
+> hvigor [32mFinished :entry:default@ProcessCompiledResources... after 1 ms [39m
+> hvigor [32mFinished :entry:default@PackageHap... after 297 ms [39m
+> hvigor [32mFinished :entry:default@PackingCheck... after 4 ms [39m
+> hvigor [33mWARN: No signingConfig found for product default[39m
+> hvigor [32mFinished :entry:default@SignHap... after 1 ms [39m
+> hvigor [32mFinished :entry:default@CollectDebugSymbol... after 1 ms [39m
+> hvigor [32mFinished :entry:assembleHap... after 1 ms [39m
+> hvigor [32mBUILD SUCCESSFUL in 5 s 919 ms [39m
+
+33 tasks in total: 26 executed, 7 up-to-date

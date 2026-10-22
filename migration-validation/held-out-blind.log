@@ -1,0 +1,13 @@
+✔ cross-App context retains newly observed title and URL after leaving browser (108.975584ms)
+✔ late response after cancellation cannot send another device action (35.644083ms)
+✔ partially initialized device is closed without launching another App (38.533333ms)
+✔ host-return failure preserves failed terminal result and still closes resources (33.465042ms)
+✔ step exhaustion performs one more observation than actions, with no final unverified action (26.205ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 421.602958

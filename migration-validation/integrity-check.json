@@ -1,0 +1,8 @@
+{
+  "prompt_unchanged": true,
+  "student_version_only_removes_blind_clause": true,
+  "original_source_unchanged": true,
+  "frozen_baseline_files": 280,
+  "blind_prompt_sha256": "ed7a8787c9890dcd9bd0d36f7759f27b6b992160c94ed0d07d3d16386bf9b7ca",
+  "held_out_tests_sha256": "dc92b3576229afbaca00773eae02bccd7f061ca32710ce3334caac8087d54628"
+}

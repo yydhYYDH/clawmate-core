@@ -1,0 +1,190 @@
+✔ browser input accepts explicit replacement/submission booleans and rejects flags on other actions (2.404375ms)
+✔ UTF-8 reads Chinese, supplementary characters, BOM and empty input (0.338167ms)
+✔ UTF-8 rejects truncated sequences, overlong encoding, surrogates, binary null and invalid code points (0.212ms)
+✔ actual imported text enters the request and removing it removes the content (0.389042ms)
+✔ image requests require vision and loaded image bytes, not merely a file URI (0.2095ms)
+✔ action schema rejects missing status, invalid coordinates and unrecognized actions (0.332667ms)
+✔ planner must select an allowlisted app and preserve an explicit task (0.190125ms)
+✔ browser planner query is retained and invalid query payloads are rejected (0.202875ms)
+✔ model URL normalization accepts base, v1 and full endpoint and rejects non-HTTP URLs (0.357459ms)
+✔ cancellation is idempotent and expiry preserves a suspended terminal reason (0.446875ms)
+✔ HTTP cancellation settles without a callback from destroy and ignores a late response (18.269042ms)
+✔ HTTP errors release resources and never expose response content as a success (16.347208ms)
+✔ GUI loop observes after an action and cleans up before returning success (65.122625ms)
+✔ cancelling while awaiting a model response prevents subsequent device input (47.012666ms)
+✔ initialization failure still cancels/closes and never launches an app (42.062583ms)
+✔ failed outcome is not promoted when returning the host fails (37.813ms)
+✔ step limit performs a final observation and returns suspended without a sixteenth action (33.5245ms)
+✔ cross-app switch uses the executor app-start operation and then observes again (26.152708ms)
+✔ a model cannot switch to an app outside the device directory (27.063708ms)
+✔ classroom Qwen model disables thinking without adding provider options to other models (22.895708ms)
+✔ real temp-file import handles short reads, partial writes, Chinese text, empty input and unique internal paths (201.254625ms)
+✔ read errors and oversize files close descriptors; unsupported types never import (71.447625ms)
+✔ invalid UTF-8 and malformed image never leave a partial asset (66.485458ms)
+✔ notes survive repository recreation and referenced attachments are retained (59.270792ms)
+✔ corrupt notes cannot be overwritten by a later save (42.819791ms)
+✔ settings keep custom address/model, restore classroom key and do not persist manual credentials (40.009208ms)
+✖ empty values saved by the old form fall back to classroom defaults (43.951125ms)
+✖ background lifetime uses actual granted quota and expiry suspends the active task (36.226417ms)
+✖ denied background quota suspends instead of pretending the task can continue (15.7855ms)
+✖ background denial exposes diagnostic detail without replacing the suspended outcome (25.30925ms)
+✖ cleanup of an old run does not clear a newer active run (13.342834ms)
+✖ return to foreground releases the previously granted short-task resource (14.866625ms)
+✔ device HDC packed 11-byte header, big endian lengths, protobuf protect and every split boundary (2.782292ms)
+✔ invalid HDC magic, version, checksum/vcode and oversized lengths fail closed (0.627ms)
+✔ UTF8 shell quote roundtrip protects Chinese, apostrophes, dollars and newlines (9.656083ms)
+✔ normalized coordinates map to physical screen, clamp edges and reject unobserved dimensions (0.180333ms)
+✔ Self-HDC real framing handshake, fragmented UTF8 output, channel EOF and exit status (69.507959ms)
+✔ authentication challenge and initialization failure release socket without sending shell (127.174125ms)
+✔ cancellation settles a never-resolving TCP connect and releases socket (40.14525ms)
+✔ nonzero command status is a failure, never a successful receipt (27.100208ms)
+✔ application directory reads exact installed bundle and public page metadata, never assumes EntryAbility (0.323375ms)
+✔ executor rejects directory outsiders, preserves replace/append/submit ordering and special text (0.393041ms)
+✔ download verifier refuses assistant sandbox and rejects missing or partial downloads (0.265125ms)
+✔ real malformed coordinate reply is regenerated on the same screenshot before execution (14.287541ms)
+✔ pixel coordinates, missing fields and empty terminal results cannot bypass schema validation (8.861166ms)
+✔ labelled click supports target IDs without coordinates and rejects malformed target actions (0.267917ms)
+✔ persistent malformed replies stop after two corrections with a readable error (8.550459ms)
+✔ unlabelled icons are retried with numeric coordinates instead of repeating an invented target (8.621917ms)
+✔ network errors and cancellation during correction do not trigger additional requests (10.380958ms)
+✖ GUI correction never executes bad actions and returns host with the verified calculation (56.714167ms)
+✖ model selects measured button labels and a stale target is regenerated before execution (47.074042ms)
+ℹ tests 51
+ℹ suites 0
+ℹ pass 43
+ℹ fail 8
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 742.56425
+
+✖ failing tests:
+
+test at tests/files.test.cjs:85:1
+✖ empty values saved by the old form fall back to classroom defaults (43.951125ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok(restored.modelKey.length>0)
+  
+      at TestContext.<anonymous> (/private/tmp/clawmate-oh-blind-20261022/tests/files.test.cjs:90:10)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:787:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at tests/runtime.test.cjs:16:1
+✖ background lifetime uses actual granted quota and expiry suspends the active task (36.226417ms)
+  Error: Test must explicitly mock SDK module: @kit.AbilityKit
+      at load (/private/tmp/clawmate-oh-blind-20261022/tests/loader.cjs:12:37)
+      at /private/tmp/clawmate-oh-blind-20261022/tests/loader.cjs:23:21
+      at /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/Runtime.ets:4:27
+      at load (/private/tmp/clawmate-oh-blind-20261022/tests/loader.cjs:22:94)
+      at /private/tmp/clawmate-oh-blind-20261022/tests/loader.cjs:26:18
+      at harness (/private/tmp/clawmate-oh-blind-20261022/tests/runtime.test.cjs:12:7)
+      at TestContext.<anonymous> (/private/tmp/clawmate-oh-blind-20261022/tests/runtime.test.cjs:17:11)
+      at Test.runInAsyncScope (node:async_hooks:228:14)
+      at Test.run (node:internal/test_runner/test:1118:25)
+      at Test.start (node:internal/test_runner/test:1015:17)
+
+test at tests/runtime.test.cjs:24:1
+✖ denied background quota suspends instead of pretending the task can continue (15.7855ms)
+  Error: Test must explicitly mock SDK module: @kit.AbilityKit
+      at load (/private/tmp/clawmate-oh-blind-20261022/tests/loader.cjs:12:37)
+      at /private/tmp/clawmate-oh-blind-20261022/tests/loader.cjs:23:21
+      at /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/Runtime.ets:4:27
+      at load (/private/tmp/clawmate-oh-blind-20261022/tests/loader.cjs:22:94)
+      at /private/tmp/clawmate-oh-blind-20261022/tests/loader.cjs:26:18
+      at harness (/private/tmp/clawmate-oh-blind-20261022/tests/runtime.test.cjs:12:7)
+      at TestContext.<anonymous> (/private/tmp/clawmate-oh-blind-20261022/tests/runtime.test.cjs:25:11)
+      at Test.runInAsyncScope (node:async_hooks:228:14)
+      at Test.run (node:internal/test_runner/test:1118:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:787:18)
+
+test at tests/runtime.test.cjs:29:1
+✖ background denial exposes diagnostic detail without replacing the suspended outcome (25.30925ms)
+  Error: Test must explicitly mock SDK module: @kit.AbilityKit
+      at load (/private/tmp/clawmate-oh-blind-20261022/tests/loader.cjs:12:37)
+      at /private/tmp/clawmate-oh-blind-20261022/tests/loader.cjs:23:21
+      at /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/Runtime.ets:4:27
+      at load (/private/tmp/clawmate-oh-blind-20261022/tests/loader.cjs:22:94)
+      at /private/tmp/clawmate-oh-blind-20261022/tests/loader.cjs:26:18
+      at harness (/private/tmp/clawmate-oh-blind-20261022/tests/runtime.test.cjs:12:7)
+      at TestContext.<anonymous> (/private/tmp/clawmate-oh-blind-20261022/tests/runtime.test.cjs:30:11)
+      at Test.runInAsyncScope (node:async_hooks:228:14)
+      at Test.run (node:internal/test_runner/test:1118:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:787:18)
+
+test at tests/runtime.test.cjs:36:1
+✖ cleanup of an old run does not clear a newer active run (13.342834ms)
+  Error: Test must explicitly mock SDK module: @kit.AbilityKit
+      at load (/private/tmp/clawmate-oh-blind-20261022/tests/loader.cjs:12:37)
+      at /private/tmp/clawmate-oh-blind-20261022/tests/loader.cjs:23:21
+      at /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/Runtime.ets:4:27
+      at load (/private/tmp/clawmate-oh-blind-20261022/tests/loader.cjs:22:94)
+      at /private/tmp/clawmate-oh-blind-20261022/tests/loader.cjs:26:18
+      at harness (/private/tmp/clawmate-oh-blind-20261022/tests/runtime.test.cjs:12:7)
+      at TestContext.<anonymous> (/private/tmp/clawmate-oh-blind-20261022/tests/runtime.test.cjs:37:11)
+      at Test.runInAsyncScope (node:async_hooks:228:14)
+      at Test.run (node:internal/test_runner/test:1118:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:787:18)
+
+test at tests/runtime.test.cjs:42:1
+✖ return to foreground releases the previously granted short-task resource (14.866625ms)
+  Error: Test must explicitly mock SDK module: @kit.AbilityKit
+      at load (/private/tmp/clawmate-oh-blind-20261022/tests/loader.cjs:12:37)
+      at /private/tmp/clawmate-oh-blind-20261022/tests/loader.cjs:23:21
+      at /private/tmp/clawmate-oh-blind-20261022/entry/src/main/ets/platform/Runtime.ets:4:27
+      at load (/private/tmp/clawmate-oh-blind-20261022/tests/loader.cjs:22:94)
+      at /private/tmp/clawmate-oh-blind-20261022/tests/loader.cjs:26:18
+      at harness (/private/tmp/clawmate-oh-blind-20261022/tests/runtime.test.cjs:12:7)
+      at TestContext.<anonymous> (/private/tmp/clawmate-oh-blind-20261022/tests/runtime.test.cjs:43:11)
+      at Test.runInAsyncScope (node:async_hooks:228:14)
+      at Test.run (node:internal/test_runner/test:1118:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:787:18)
+
+test at tests/structured.test.cjs:81:1
+✖ GUI correction never executes bad actions and returns host with the verified calculation (56.714167ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+    {
+  +   message: '缺少当前画面的具体完成证据，尚未确认完成。',
+  +   status: 'suspended'
+  -   message: '14×13=182',
+  -   status: 'success'
+    }
+  
+      at TestContext.<anonymous> (/private/tmp/clawmate-oh-blind-20261022/tests/structured.test.cjs:98:10)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:787:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { status: 'suspended', message: '缺少当前画面的具体完成证据，尚未确认完成。' },
+    expected: { status: 'success', message: '14×13=182' },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at tests/structured.test.cjs:104:1
+✖ model selects measured button labels and a stale target is regenerated before execution (47.074042ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + '缺少当前画面的具体完成证据，尚未确认完成。'
+  - '15×13=195'
+  
+      at TestContext.<anonymous> (/private/tmp/clawmate-oh-blind-20261022/tests/structured.test.cjs:120:10)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:787:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '缺少当前画面的具体完成证据，尚未确认完成。',
+    expected: '15×13=195',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

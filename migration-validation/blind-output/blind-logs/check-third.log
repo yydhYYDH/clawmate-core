@@ -1,0 +1,98 @@
+✔ browser input accepts explicit replacement/submission booleans and rejects flags on other actions (2.307666ms)
+✔ UTF-8 reads Chinese, supplementary characters, BOM and empty input (0.310708ms)
+✔ UTF-8 rejects truncated sequences, overlong encoding, surrogates, binary null and invalid code points (0.195625ms)
+✔ actual imported text enters the request and removing it removes the content (0.362917ms)
+✔ image requests require vision and loaded image bytes, not merely a file URI (0.201042ms)
+✔ action schema rejects missing status, invalid coordinates and unrecognized actions (0.316084ms)
+✔ planner must select an allowlisted app and preserve an explicit task (0.173375ms)
+✔ browser planner query is retained and invalid query payloads are rejected (0.215375ms)
+✔ model URL normalization accepts base, v1 and full endpoint and rejects non-HTTP URLs (0.336792ms)
+✔ cancellation is idempotent and expiry preserves a suspended terminal reason (0.435334ms)
+✔ HTTP cancellation settles without a callback from destroy and ignores a late response (15.405125ms)
+✔ HTTP errors release resources and never expose response content as a success (8.801875ms)
+✔ GUI loop observes after an action and cleans up before returning success (65.777291ms)
+✔ cancelling while awaiting a model response prevents subsequent device input (53.452792ms)
+✔ initialization failure still cancels/closes and never launches an app (48.562083ms)
+✔ failed outcome is not promoted when returning the host fails (34.581792ms)
+✔ step limit performs a final observation and returns suspended without a sixteenth action (24.83775ms)
+✔ cross-app switch uses the executor app-start operation and then observes again (29.819667ms)
+✔ a model cannot switch to an app outside the device directory (27.950042ms)
+✔ classroom Qwen model disables thinking without adding provider options to other models (28.08025ms)
+✔ real temp-file import handles short reads, partial writes, Chinese text, empty input and unique internal paths (199.691834ms)
+✔ read errors and oversize files close descriptors; unsupported types never import (79.277708ms)
+✔ invalid UTF-8 and malformed image never leave a partial asset (73.781167ms)
+✔ notes survive repository recreation and referenced attachments are retained (51.128666ms)
+✔ corrupt notes cannot be overwritten by a later save (43.164375ms)
+✔ settings keep custom address/model, restore classroom key and do not persist manual credentials (47.858333ms)
+✔ empty values saved by the old form fall back to classroom defaults (40.140875ms)
+✔ background lifetime uses actual granted quota and expiry suspends the active task (34.4595ms)
+✔ denied background quota suspends instead of pretending the task can continue (14.855ms)
+✔ background denial exposes diagnostic detail without replacing the suspended outcome (14.498583ms)
+✔ cleanup of an old run does not clear a newer active run (12.932875ms)
+✔ return to foreground releases the previously granted short-task resource (10.648583ms)
+✔ API18 continuous grant keeps task budget and releases on terminal state (11.491625ms)
+✔ denied continuous grant falls back to actual short allowance (13.540583ms)
+✔ late continuous grant after terminal cleanup is immediately released (15.919125ms)
+✔ device HDC packed 11-byte header, big endian lengths, protobuf protect and every split boundary (2.946792ms)
+✔ invalid HDC magic, version, checksum/vcode and oversized lengths fail closed (0.614209ms)
+✔ UTF8 shell quote roundtrip protects Chinese, apostrophes, dollars and newlines (19.553167ms)
+✔ normalized coordinates map to physical screen, clamp edges and reject unobserved dimensions (0.202167ms)
+✔ Self-HDC real framing handshake, fragmented UTF8 output, channel EOF and exit status (68.585ms)
+✔ authentication challenge and initialization failure release socket without sending shell (134.147625ms)
+✔ cancellation settles a never-resolving TCP connect and releases socket (41.292417ms)
+✔ nonzero command status is a failure, never a successful receipt (25.406667ms)
+✔ application directory reads exact installed bundle and public page metadata, never assumes EntryAbility (0.291416ms)
+✔ executor rejects directory outsiders, preserves replace/append/submit ordering and special text (0.398291ms)
+✔ download verifier refuses assistant sandbox and rejects missing or partial downloads (0.27025ms)
+✔ observed search title/link survive app switch and reach the next model input (19.057334ms)
+✔ model done without current evidence and download without file verification stay suspended (35.475417ms)
+✔ download disk verification failure cannot become success and still returns/releases host (15.867334ms)
+✔ final observation can finish after the fifteenth action but cannot execute a sixteenth (16.058042ms)
+✔ real malformed coordinate reply is regenerated on the same screenshot before execution (13.958416ms)
+✔ pixel coordinates, missing fields and empty terminal results cannot bypass schema validation (7.502333ms)
+✔ labelled click supports target IDs without coordinates and rejects malformed target actions (0.250334ms)
+✔ persistent malformed replies stop after two corrections with a readable error (6.156417ms)
+✔ unlabelled icons are retried with numeric coordinates instead of repeating an invented target (6.907584ms)
+✔ network errors and cancellation during correction do not trigger additional requests (11.332542ms)
+✔ GUI correction never executes bad actions and returns host with the verified calculation (57.217291ms)
+✔ model selects measured button labels and a stale target is regenerated before execution (58.169667ms)
+ℹ tests 58
+ℹ suites 0
+ℹ pass 58
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 857.816709
+test_browser_query_is_encoded_inside_configured_search_url_and_cannot_override_host (test_bridge.BridgeTests) ... ok
+test_browser_search_field_uses_hint_when_empty_and_page_link_has_measured_target (test_bridge.BridgeTests) ... ok
+test_browser_start_url_is_preserved_and_cannot_be_a_private_file_or_shell_command (test_bridge.BridgeTests) ... ok
+test_cancel_during_replacement_does_not_type_or_submit_the_search (test_bridge.BridgeTests) ... ok
+test_cancel_prevents_future_actions_but_allows_return_and_close (test_bridge.BridgeTests) ... ok
+test_cancel_unblocks_inflight_action_and_close (test_bridge.BridgeTests) ... ok
+test_expired_session_reclaimed_without_stealing_active_session (test_bridge.BridgeTests) ... ok
+test_invalid_coordinates_and_image_headers (test_bridge.BridgeTests) ... ok
+test_labelled_target_click_uses_measured_center_and_is_invalidated_after_input (test_bridge.BridgeTests) ... ok
+test_real_command_plan_requires_screen_and_converts_normalized_coordinates (test_bridge.BridgeTests) ... ok
+test_search_input_replaces_and_submits_in_order_without_executing_text_as_shell (test_bridge.BridgeTests) ... ok
+test_shell_text_is_quoted_as_data_and_not_host_shell_code (test_bridge.BridgeTests) ... ok
+test_stale_session_cannot_affect_new_session (test_bridge.BridgeTests) ... ok
+test_ui_targets_use_full_screen_bounds_and_ignore_hidden_disabled_and_status_bar (test_bridge.BridgeTests) ... ok
+test_unknown_app_or_shell_action_never_reaches_device (test_bridge.BridgeTests) ... ok
+test_visible_browser_text_excludes_other_apps_notifications_and_offscreen_content (test_bridge.BridgeTests) ... ok
+test_bridge_auth_happens_before_dispatch (test_http_services.HTTPTests) ... ok
+test_model_rejects_device_uri_as_image_data (test_http_services.HTTPTests) ... ok
+test_model_requires_auth_and_refuses_fake_gui_success (test_http_services.HTTPTests) ... ok
+test_model_response_changes_with_actual_request (test_http_services.HTTPTests) ... ok
+
+----------------------------------------------------------------------
+Ran 20 tests in 2.452s
+
+OK
+bridge: POST /capabilities
+bridge: POST /capabilities
+classroom inspection: POST /v1/chat/completions
+classroom inspection: POST /v1/chat/completions
+classroom inspection: POST /v1/chat/completions
+classroom inspection: POST /v1/chat/completions
+classroom inspection: POST /v1/chat/completions

@@ -1,0 +1,7 @@
+{
+  "date": "2026-10-22",
+  "command": "hdc list targets",
+  "exit_code": 0,
+  "stdout": "[Empty]",
+  "meaning": "本次检测时没有已连接设备；未进行安装或真机业务验收。"
+}

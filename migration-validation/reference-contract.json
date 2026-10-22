@@ -1,0 +1,56 @@
+[
+  {
+    "id": "B01",
+    "requirement": "OH 编译与最低 API 18 兼容",
+    "reference": "runtimeOS=OpenHarmony; compileSdkVersion=23; compatibleSdkVersion=18",
+    "source": "build-profile.json5"
+  },
+  {
+    "id": "B02",
+    "requirement": "Self-HDC 本机执行，独立于电脑桥",
+    "reference": "TCP/二进制 HDC/认证/截图/输入/启动",
+    "source": "entry/src/main/ets/core/selfhdc/"
+  },
+  {
+    "id": "B03",
+    "requirement": "任务闭环、失败/暂停/取消、最后一步观察",
+    "reference": "AgentRunner; 15 步; 90 秒请求; 10 分钟任务",
+    "source": "entry/src/main/ets/core/AgentRunner.ets"
+  },
+  {
+    "id": "B04",
+    "requirement": "返回宿主及资源释放",
+    "reference": "公开 startAbility，失败后独立 Self-HDC；返回错误不覆盖任务结果",
+    "source": "entry/src/main/ets/core/HostAppReturn.ets"
+  },
+  {
+    "id": "T01",
+    "requirement": "搜索返回标题、来源、摘要",
+    "reference": "独立浏览器已验证搜索；主助手目录没有课程浏览器；端到端未验收",
+    "source": "tools/robopi-browser/README.md; entry/src/main/ets/core/AppCatalog.ets"
+  },
+  {
+    "id": "T02",
+    "requirement": "备忘录写入并重开恢复",
+    "reference": "目录含备忘录；GUI 通用动作；未发现完整任务验收记录",
+    "source": "entry/src/main/ets/core/AppCatalog.ets; docs/CORE_GUI_STATUS.md"
+  },
+  {
+    "id": "T03",
+    "requirement": "本次搜索结果跨 App 保存",
+    "reference": "支持 open_app 与动作历史；未发现完整链路验收记录",
+    "source": "entry/src/main/ets/core/AgentRunner.ets"
+  },
+  {
+    "id": "T04",
+    "requirement": "下载文件并核对落盘",
+    "reference": "独立浏览器有下载委托，已有记录明确未做下载实机验收",
+    "source": "tools/robopi-browser/README.md"
+  },
+  {
+    "id": "S01",
+    "requirement": "保留 starter 资料问答、附件、本地笔记",
+    "reference": "starter 扩展功能；OH 主助手没有同等附件/笔记模块",
+    "source": "harmonyos-starter/README.md"
+  }
+]
