@@ -5,6 +5,7 @@ export interface PhoneApp {
 
 // Planner 和名称解析共用设备的 OpenHarmony 应用目录。
 export const PHONE_APPS: PhoneApp[] = [
+  { name: 'RoboPi 浏览器', bundle: 'com.clawmate.browser' },
   { name: '设置', bundle: 'com.ohos.settings' },
   { name: '图库', bundle: 'com.ohos.photos' },
   { name: '相机', bundle: 'com.ohos.camera' },

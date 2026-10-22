@@ -15,7 +15,9 @@ const APP_BUNDLES: Record<string, string> = {
   '文件管理': 'com.huawei.hmos.files', '运动健康': 'com.huawei.hmos.health',
   '智慧生活': 'com.huawei.hmos.ailife', '豆包': 'com.larus.nova.hm', 'WeLink': 'com.huawei.it.welink',
   '懂车帝': 'com.ss.dcar.auto', '美团外卖': 'com.meituan.takeaway',
-  '大众点评': 'com.sankuai.dianping', '美团': 'com.sankuai.hmeituan', '浏览器': 'com.huawei.hmos.browser',
+  '大众点评': 'com.sankuai.dianping', '美团': 'com.sankuai.hmeituan',
+  '浏览器': 'com.clawmate.browser', 'RoboPi浏览器': 'com.clawmate.browser',
+  'robopi浏览器': 'com.clawmate.browser',
   '拼多多': 'com.xunmeng.pinduoduo.hos', '支付宝': 'com.alipay.mobile.client'
 };
 
