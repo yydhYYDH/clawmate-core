@@ -1,13 +1,25 @@
 import { common } from '@kit.AbilityKit';
 import { backgroundTaskManager } from '@kit.BackgroundTasksKit';
 import { RunScope } from '../core/RunScope';
+import { BusinessError } from '@kit.BasicServicesKit';
 
 export class Runtime {
   static context: common.UIAbilityContext;
   private static active: RunScope | null = null;
   private static delayId: number = -1;
   private static expiryTimer: number = -1;
-  static begin(scope: RunScope): void { Runtime.active = scope; }
+  private static report: ((line: string) => void) | null = null;
+  static begin(scope: RunScope, report?: (line: string) => void): void {
+    Runtime.active = scope;
+    Runtime.report = report || null;
+    try {
+      backgroundTaskManager.getTransientTaskInfo().then((info): void => {
+        if (Runtime.active === scope && Runtime.report !== null) {
+          Runtime.report('系统短时后台剩余额度：' + info.remainingQuota + ' ms；现有申请：' + info.transientTasks.length);
+        }
+      }).catch((): void => { /* 诊断失败不改变业务结果。 */ });
+    } catch (e) { /* 低版本或测试替身可能没有额度查询接口。 */ }
+  }
   static stop(): void { if (Runtime.active !== null) { Runtime.active.stop(); } }
   static foreground(): void {
     Runtime.releaseDelay();
@@ -19,18 +31,21 @@ export class Runtime {
         if (Runtime.active !== null) { Runtime.active.stop('suspended', '系统后台额度到期，请返回 App 后重新发起任务。'); }
       });
       Runtime.delayId = delay.requestId;
+      if (Runtime.report !== null) { Runtime.report('已获准短时后台运行：' + delay.actualDelayTime + ' ms'); }
       let milliseconds = Math.max(0, delay.actualDelayTime - 1000);
       Runtime.active.limit(milliseconds);
       Runtime.expiryTimer = setTimeout((): void => {
         if (Runtime.active !== null) { Runtime.active.stop('suspended', '后台运行额度到期。'); }
       }, milliseconds);
     } catch (e) {
+      let error = e as BusinessError;
+      if (Runtime.report !== null) { Runtime.report('短时后台申请失败，code=' + error.code + '，message=' + error.message); }
       Runtime.active.stop('suspended', '系统未授予短时后台运行额度，任务已暂停。');
     }
   }
   static finish(scope?: RunScope): void {
     if (scope !== undefined && Runtime.active !== scope) { return; }
-    Runtime.active = null; Runtime.releaseDelay();
+    Runtime.active = null; Runtime.releaseDelay(); Runtime.report = null;
   }
   private static releaseDelay(): void {
     clearTimeout(Runtime.expiryTimer);

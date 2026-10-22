@@ -46,6 +46,79 @@ class BridgeTests(unittest.TestCase):
     def body(self, **kwargs):
         return {'session': self.session, **kwargs}
 
+    def test_browser_start_url_is_preserved_and_cannot_be_a_private_file_or_shell_command(self):
+        browser = {**APP, 'startUri': 'https://www.baidu.com/'}
+        self.assertEqual(module.valid_app(browser)['startUri'], browser['startUri'])
+        for url in ['file:///data/private', 'javascript:alert(1)', 'https://user:secret@example.com/', 'https://example.com/\ninvalid']:
+            with self.assertRaises(module.BridgeError):
+                module.valid_app({**APP, 'startUri': url})
+        calls = []
+        device = module.Device('/hdc', 'target')
+        def execute(parts, stop=None, timeout=15):
+            calls.append(parts)
+            return 'start ability successfully.'
+        device.shell = execute
+        device.launch(browser, None)
+        self.assertEqual(calls[0][-2:], ['-U', 'https://www.baidu.com/'])
+        self.assertEqual(calls[0][-4:-2], ['-A', 'ohos.want.action.viewData'])
+
+    def test_browser_query_is_encoded_inside_configured_search_url_and_cannot_override_host(self):
+        browser = {**APP, 'searchUriTemplate': 'https://www.baidu.com/s?wd={query}'}
+        bridge = module.Bridge(self.device, [browser], HOST)
+        session = bridge.dispatch('/session/open', {})['id']
+        captured = []
+        self.device.launch = lambda app, stop: captured.append(app)
+        try:
+            bridge.dispatch('/app/start', {'session': session, 'bundle': APP['bundle'], 'query': '中文 C++ &url=file:///private'})
+            from urllib.parse import urlsplit, parse_qs
+            parsed = urlsplit(captured[0]['startUri'])
+            self.assertEqual(parsed.hostname, 'www.baidu.com')
+            self.assertEqual(parse_qs(parsed.query), {'wd': ['中文 C++ &url=file:///private']})
+            for template in ['https://{query}/', 'https://www.baidu.com/s?q={query}&x={query}', 'file:///tmp?q={query}']:
+                with self.assertRaises(module.BridgeError):module.valid_app({**APP, 'searchUriTemplate': template})
+            with self.assertRaises(module.BridgeError):
+                self.bridge.dispatch('/app/start', self.body(bundle=APP['bundle'], query='中文'))
+        finally:
+            bridge.dispatch('/session/close', {'session': session})
+
+    def test_search_input_replaces_and_submits_in_order_without_executing_text_as_shell(self):
+        self.bridge.dispatch('/action', self.body(action={'action': 'input', 'text': "OpenHarmony 官网 ' ; id", 'replace': True, 'submit': True}))
+        self.assertEqual(self.device.commands, [
+            ['uitest', 'uiInput', 'keyEvent', '2072', '2017'],
+            ['uitest', 'uiInput', 'keyEvent', '2055'],
+            ['uitest', 'uiInput', 'text', "OpenHarmony 官网 ' ; id"],
+            ['uitest', 'uiInput', 'keyEvent', '2054']])
+        for action in [{'action': 'input', 'text': 'query', 'submit': 'true'}, {'action': 'home', 'replace': True}]:
+            with self.assertRaises(module.BridgeError):
+                self.bridge.dispatch('/action', self.body(action=action))
+
+    def test_cancel_during_replacement_does_not_type_or_submit_the_search(self):
+        commands = []
+        def execute(parts, stop):
+            commands.append(parts)
+            stop.set()
+        self.device.shell = execute
+        with self.assertRaises(module.BridgeError):
+            self.bridge.dispatch('/action', self.body(action={'action': 'input', 'text': 'query', 'replace': True, 'submit': True}))
+        self.assertEqual(len(commands), 1)
+
+    def test_browser_search_field_uses_hint_when_empty_and_page_link_has_measured_target(self):
+        tree = {'children': [{'attributes': {'bundleName': APP['bundle'], 'focused': 'true'}, 'children': [
+            {'attributes': {'type': 'SearchField', 'hint': '搜索或输入网址', 'bounds': '[50,100][700,200]'}},
+            {'attributes': {'type': 'link', 'clickable': 'true', 'text': 'OpenHarmony 官网', 'bounds': '[50,400][700,500]'}}]}]}
+        targets = module.screen_targets(tree, 800, 1280)
+        self.assertEqual([target['label'] for target in targets], ['搜索或输入网址', 'OpenHarmony 官网'])
+
+    def test_visible_browser_text_excludes_other_apps_notifications_and_offscreen_content(self):
+        def text(value, bounds='[0,10][100,40]'):
+            return {'attributes': {'type': 'Text', 'text': value, 'bounds': bounds}}
+        tree = {'children': [
+            {'attributes': {'bundleName': 'browser', 'focused': 'true'}, 'children': [
+                text('OpenHarmony 官网'), text('OpenHarmony 官网'), text('不允许'), text('offscreen', '[0,1500][100,1600]')]},
+            {'attributes': {'bundleName': 'other', 'focused': 'false'}, 'children': [text('private other app')]},
+            {'attributes': {'bundleName': 'com.ohos.sceneboard', 'focused': 'true'}, 'children': [text('private notification')]}]}
+        self.assertEqual(module.screen_text(tree, 800, 1280), 'OpenHarmony 官网\n不允许')
+
     def test_real_command_plan_requires_screen_and_converts_normalized_coordinates(self):
         with self.assertRaises(module.BridgeError):
             self.bridge.dispatch('/action', self.body(action={'action': 'click', 'x': 500, 'y': 500}))

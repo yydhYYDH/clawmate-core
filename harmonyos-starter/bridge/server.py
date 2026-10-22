@@ -20,6 +20,7 @@ import subprocess
 import tempfile
 import threading
 import time
+from urllib.parse import urlsplit, quote
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 
@@ -48,7 +49,7 @@ def screen_targets(tree, width, height):
         attributes = node.get('attributes', {})
         if not visible(attributes):
             return ''
-        text = attributes.get('text', '').strip()
+        text = (attributes.get('text') or attributes.get('hint') or attributes.get('accessibilityText') or '').strip()
         if text:
             return text
         return ' '.join(filter(None, (label(child) for child in node.get('children', []))))
@@ -57,7 +58,10 @@ def screen_targets(tree, width, height):
         attributes = node.get('attributes', {})
         if not visible(attributes) or len(targets) >= 60:
             return
-        if attributes.get('type') == 'Button' and attributes.get('clickable') == 'true':
+        kind = attributes.get('type')
+        is_field = kind in ('TextInput', 'TextArea', 'SearchField', 'input', 'textfield', 'searchbox')
+        is_control = kind in ('Button', 'Text', 'Image', 'button', 'link', 'a') and attributes.get('clickable') == 'true'
+        if is_field or is_control:
             text = label(node)
             bounds = re.fullmatch(r'\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\]', attributes.get('bounds', ''))
             if bounds:
@@ -76,6 +80,36 @@ def screen_targets(tree, width, height):
         if attributes.get('focused') == 'true' and attributes.get('bundleName') != 'com.ohos.sceneboard':
             visit(root)
     return targets
+
+
+def screen_text(tree, width, height):
+    """Visible text from the focused app only, excluding status-bar notifications."""
+    lines = []
+    seen = set()
+    used = 0
+
+    def visit(node):
+        nonlocal used
+        a = node.get('attributes', {})
+        if a.get('visible', 'true') == 'false' or used >= 6000:
+            return
+        text = (a.get('text') or '').strip()
+        bounds = re.fullmatch(r'\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\]', a.get('bounds', ''))
+        if text and text not in seen and bounds:
+            left, top, right, bottom = map(int, bounds.groups())
+            if max(left, 0) < min(right, width) and max(top, 0) < min(bottom, height):
+                text = text[:min(1000, 6000 - used)]
+                lines.append(text)
+                seen.add(text)
+                used += len(text)
+        for child in node.get('children', []):
+            visit(child)
+
+    for root in tree.get('children', []):
+        a = root.get('attributes', {})
+        if a.get('focused') == 'true' and a.get('bundleName') != 'com.ohos.sceneboard':
+            visit(root)
+    return '\n'.join(lines)
 
 
 def image_size(data):
@@ -119,7 +153,26 @@ def valid_app(item):
     for key in ('bundle', 'ability'):
         if not re.fullmatch(r'[A-Za-z0-9_.]+', item[key]):
             raise BridgeError('Invalid application identifier.')
-    return {key: item[key] for key in ('name', 'bundle', 'ability')}
+    result = {key: item[key] for key in ('name', 'bundle', 'ability')}
+    if 'startUri' in item:
+        uri = item['startUri']
+        if not isinstance(uri, str) or len(uri) > 2048 or any(ord(c) < 32 for c in uri):
+            raise BridgeError('Invalid browser start URI.')
+        parsed = urlsplit(uri)
+        if parsed.scheme not in ('http', 'https') or not parsed.hostname or parsed.username or parsed.password:
+            raise BridgeError('Browser start URI must be an HTTP(S) URL without credentials.')
+        result['startUri'] = uri
+    if 'searchUriTemplate' in item:
+        template = item['searchUriTemplate']
+        if not isinstance(template, str) or template.count('{query}') != 1 or len(template) > 2048:
+            raise BridgeError('Search URI requires exactly one {query} placeholder.')
+        parsed = urlsplit(template)
+        if '{query}' not in parsed.query or parsed.scheme not in ('http', 'https') or not parsed.hostname or parsed.username or parsed.password:
+            raise BridgeError('Search placeholder must be in an HTTP(S) query without credentials.')
+        if any(ord(c) < 32 for c in template):
+            raise BridgeError('Invalid search URI template.')
+        result['searchUriTemplate'] = template
+    return result
 
 
 class Device:
@@ -165,7 +218,10 @@ class Device:
         return all(word in help_text for word in ('click', 'swipe', 'text', 'keyEvent'))
 
     def launch(self, app, stop):
-        result = self.shell(['aa', 'start', '-b', app['bundle'], '-a', app['ability']], stop)
+        command = ['aa', 'start', '-b', app['bundle'], '-a', app['ability']]
+        if app.get('startUri'):
+            command += ['-A', 'ohos.want.action.viewData', '-U', app['startUri']]
+        result = self.shell(command, stop)
         if not re.search(r'(?i)start.*success|success.*start', result):
             raise BridgeError('Application launch not confirmed by aa: ' + result[:200], 502)
 
@@ -186,6 +242,7 @@ class Device:
                 data = path.read_bytes()
             mime, width, height = image_size(data)
             targets = []
+            text = ''
             layout_remote = remote + '.json'
             try:
                 self.shell(['uitest', 'dumpLayout', '-p', layout_remote], stop)
@@ -193,7 +250,9 @@ class Device:
                     path = Path(folder) / 'layout.json'
                     self.run(['file', 'recv', layout_remote, str(path)], stop)
                     if path.stat().st_size <= 4 * 1024 * 1024:
-                        targets = screen_targets(json.loads(path.read_text()), width, height)
+                        tree = json.loads(path.read_text())
+                        targets = screen_targets(tree, width, height)
+                        text = screen_text(tree, width, height)
             except Exception:
                 # Some apps expose no UI tree; retain screenshot-based coordinates for those apps.
                 pass
@@ -203,7 +262,7 @@ class Device:
                 except Exception:
                     pass
             return {'base64': base64.b64encode(data).decode(), 'mime': mime, 'width': width, 'height': height,
-                    'targets': targets}
+                    'targets': targets, 'text': text}
         finally:
             try:
                 self.shell(['rm', '-f', remote], timeout=3)
@@ -298,6 +357,13 @@ class Bridge:
                 target = next((app for app in self.apps if app['bundle'] == body.get('bundle')), None)
                 if target is None:
                     raise BridgeError('Application is not in the configured allowlist.')
+                if 'query' in body:
+                    query = body['query']
+                    if not isinstance(query, str) or not query.strip() or len(query) > 500 or '\0' in query:
+                        raise BridgeError('Search query must contain 1 to 500 characters.')
+                    if not target.get('searchUriTemplate'):
+                        raise BridgeError('Application has no configured search URI.')
+                    target = {**target, 'startUri': target['searchUriTemplate'].replace('{query}', quote(query, safe=''))}
                 self.device.launch(target, session.stop)
                 if session.stop.wait(0.6):
                     raise BridgeError('Session cancelled.', 409)
@@ -319,6 +385,9 @@ class Bridge:
             raise BridgeError('Action must be an object.')
         kind = action.get('action')
         detail = ''
+        for option in ('replace', 'submit'):
+            if option in action and (kind != 'input' or not isinstance(action[option], bool)):
+                raise BridgeError('replace and submit must be booleans on input actions.')
         if kind not in ('click', 'swipe', 'input', 'back', 'home', 'wait'):
             raise BridgeError('Unsupported action.')
         if kind == 'wait':
@@ -346,11 +415,19 @@ class Bridge:
                 text = action.get('text')
                 if not isinstance(text, str) or len(text) > 2000 or '\0' in text:
                     raise BridgeError('Invalid input text.')
+                if action.get('replace'):
+                    self.check(session)
+                    self.device.shell(['uitest', 'uiInput', 'keyEvent', '2072', '2017'], session.stop)
+                    self.check(session)
+                    self.device.shell(['uitest', 'uiInput', 'keyEvent', '2055'], session.stop)
                 command += ['text', text]
             else:
                 command += ['keyEvent', '2' if kind == 'back' else '1']
             self.check(session)
             self.device.shell(command, session.stop)
+            if kind == 'input' and action.get('submit'):
+                self.check(session)
+                self.device.shell(['uitest', 'uiInput', 'keyEvent', '2054'], session.stop)
             # Do not race a screenshot against an unfinished UI transition.
             if session.stop.wait(0.6):
                 raise BridgeError('Session cancelled.', 409)

@@ -26,6 +26,13 @@ test('denied background quota suspends instead of pretending the task can contin
   assert.throws(()=>scope.check(),e=>e.status==='suspended');h.Runtime.finish(scope);
 });
 
+test('background denial exposes diagnostic detail without replacing the suspended outcome',()=>{
+  const h=harness(0,true);const scope=new RunScope();const logs=[];
+  h.Runtime.begin(scope,line=>logs.push(line));h.Runtime.onBackground();
+  assert.ok(logs.some(line=>line.includes('短时后台申请失败')&&line.includes('denied')));
+  assert.throws(()=>scope.check(),e=>e.status==='suspended');h.Runtime.finish(scope);
+});
+
 test('cleanup of an old run does not clear a newer active run',()=>{
   const h=harness();const old=new RunScope();const fresh=new RunScope();
   h.Runtime.begin(old);h.Runtime.begin(fresh);h.Runtime.finish(old);h.Runtime.stop();

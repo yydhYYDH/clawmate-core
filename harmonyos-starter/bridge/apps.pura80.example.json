@@ -1,0 +1,14 @@
+{
+  "host": { "name": "ClawMate Lab", "bundle": "com.clawmate.harmonystarter", "ability": "EntryAbility" },
+  "apps": [
+    { "name": "计算器", "bundle": "com.huawei.hmos.calculator", "ability": "CalculatorAbility" },
+    {
+      "name": "华为浏览器", "bundle": "com.huawei.hmos.browser", "ability": "MainAbility",
+      "startUri": "https://www.baidu.com/", "searchUriTemplate": "https://www.baidu.com/s?wd={query}"
+    },
+    {
+      "name": "夸克浏览器", "bundle": "com.quark.ohosbrowser", "ability": "EntryAbility",
+      "startUri": "https://www.baidu.com/", "searchUriTemplate": "https://www.baidu.com/s?wd={query}"
+    }
+  ]
+}

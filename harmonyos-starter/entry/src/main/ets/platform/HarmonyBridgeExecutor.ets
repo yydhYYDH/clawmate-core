@@ -5,7 +5,7 @@ import { requestJson } from './HttpJson';
 import { DeviceExecutor } from './DeviceExecutor';
 
 interface SessionBody { session: string; }
-interface StartBody { session: string; bundle: string; }
+interface StartBody { session: string; bundle: string; query?: string; }
 interface ActionBody { session: string; action: Action; }
 
 export class HarmonyBridgeExecutor implements DeviceExecutor {
@@ -26,8 +26,9 @@ export class HarmonyBridgeExecutor implements DeviceExecutor {
     scope.check();
     return caps;
   }
-  async startApp(bundle: string, scope: RunScope): Promise<void> {
+  async startApp(bundle: string, scope: RunScope, query?: string): Promise<void> {
     let body: StartBody = { session: this.session, bundle: bundle };
+    if (query !== undefined) { body.query = query; }
     await requestJson<Receipt>(this.base + '/app/start', JSON.stringify(body), scope, this.token);
   }
   async screenshot(scope: RunScope): Promise<Screenshot> {

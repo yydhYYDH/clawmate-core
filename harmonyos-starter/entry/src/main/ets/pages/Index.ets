@@ -157,7 +157,7 @@ struct Index {
     this.messages = this.messages.concat([{ id: this.counter++, role: 'user', text: question, status: '', attachments: selected },
       { id: id, role: 'assistant', text: '', status: 'running', attachments: selected }]);
     this.showLatest();
-    Runtime.begin(scope);
+    Runtime.begin(scope, (line: string): void => { this.log(line); });
     let result: RunResult = { status: 'failed', message: '尚未完成。' };
     try {
       if (this.mode === 0) {

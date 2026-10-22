@@ -47,12 +47,12 @@ export interface ModelBody {
 export interface ModelChoice { message?: ModelAnswer; }
 export interface ModelAnswer { content?: string; }
 export interface ModelResponse { choices?: ModelChoice[]; }
-export interface BridgeApp { name: string; bundle: string; ability: string; }
+export interface BridgeApp { name: string; bundle: string; ability: string; startUri?: string; searchUriTemplate?: string; }
 export interface Capabilities { screenshot: boolean; actions: boolean; apps: BridgeApp[]; reason: string; }
 export interface Session { id: string; }
 export interface ScreenTarget { id: string; label: string; x: number; y: number; }
-export interface Screenshot { base64: string; mime: string; width: number; height: number; targets?: ScreenTarget[]; }
-export interface Plan { bundle: string; task: string; }
+export interface Screenshot { base64: string; mime: string; width: number; height: number; targets?: ScreenTarget[]; text?: string; }
+export interface Plan { bundle: string; task: string; query?: string; }
 export interface Action {
   action: string;
   target?: string;
@@ -62,6 +62,8 @@ export interface Action {
   x2?: number;
   y2?: number;
   text?: string;
+  replace?: boolean;
+  submit?: boolean;
   status?: string;
   summary?: string;
 }

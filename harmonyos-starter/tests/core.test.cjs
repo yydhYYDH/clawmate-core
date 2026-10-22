@@ -4,6 +4,14 @@ const { loader } = require('./loader.cjs');
 const { decodeUtf8, makeQuestion, parseAction, parsePlan, chatEndpoint } = loader()('core/Domain');
 const { RunScope, RunStopped } = loader()('core/RunScope');
 const utf8 = text => new TextEncoder().encode(text);
+
+test('browser input accepts explicit replacement/submission booleans and rejects flags on other actions', () => {
+  assert.deepEqual(parseAction('{"action":"input","text":"OpenHarmony 官网","replace":true,"submit":true}'),
+    {action:'input',text:'OpenHarmony 官网',replace:true,submit:true});
+  for (const action of [{action:'input',text:'query',submit:'true'}, {action:'home',replace:true}]) {
+    assert.throws(()=>parseAction(JSON.stringify(action)), /replace|submit/);
+  }
+});
 const textFile = { id: '1', name: '资料.txt', kind: 'text', text: '实验口令是蓝色风车', path: '/asset-1', preview: '', size: 36, mime: '' };
 
 test('UTF-8 reads Chinese, supplementary characters, BOM and empty input', () => {
@@ -45,6 +53,14 @@ test('action schema rejects missing status, invalid coordinates and unrecognized
 test('planner must select an allowlisted app and preserve an explicit task', () => {
   assert.throws(() => parsePlan('{"bundle":"unlisted","task":"task"}', ['allowed']));
   assert.deepEqual(parsePlan('{"bundle":"allowed","task":"task"}', ['allowed']), { bundle:'allowed', task:'task' });
+});
+
+test('browser planner query is retained and invalid query payloads are rejected', () => {
+  assert.deepEqual(parsePlan('{"bundle":"browser","task":"搜索","query":"OpenHarmony 官网"}', ['browser']),
+    {bundle:'browser',task:'搜索',query:'OpenHarmony 官网'});
+  for (const query of ['',123,'x'.repeat(501)]) {
+    assert.throws(()=>parsePlan(JSON.stringify({bundle:'browser',task:'搜索',query}),['browser']),/搜索词/);
+  }
 });
 
 test('model URL normalization accepts base, v1 and full endpoint and rejects non-HTTP URLs', () => {

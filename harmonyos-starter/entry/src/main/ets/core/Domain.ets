@@ -32,6 +32,9 @@ export function parsePlan(text: string, allowed: string[]): Plan {
   if (typeof plan.bundle !== 'string' || allowed.indexOf(plan.bundle) < 0 || typeof plan.task !== 'string' || !plan.task.trim()) {
     throw new Error('规划结果未使用教师配置的应用目录，或缺少任务。');
   }
+  if (plan.query !== undefined && (typeof plan.query !== 'string' || !plan.query.trim() || plan.query.length > 500)) {
+    throw new Error('浏览器搜索词必须是 1–500 字符的文本。');
+  }
   return plan;
 }
 
@@ -56,6 +59,10 @@ export function parseAction(text: string): Action {
   }
   if (item.action === 'input' && (typeof item.text !== 'string' || item.text.length > 2000)) {
     throw new Error('输入动作缺少文本，或文本超过 2000 字符。');
+  }
+  if ((item.replace !== undefined && (item.action !== 'input' || typeof item.replace !== 'boolean')) ||
+    (item.submit !== undefined && (item.action !== 'input' || typeof item.submit !== 'boolean'))) {
+    throw new Error('replace 和 submit 只能用于 input，并且必须是布尔值。');
   }
   if (item.action === 'open_app' && (typeof item.bundle !== 'string' || !item.bundle.trim())) {
     throw new Error('打开应用动作缺少包名。');
