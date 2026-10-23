@@ -12,6 +12,8 @@ class ChatMessage {
   id: number;
   role: string;
   paragraphs: string[] = [];
+  // 流式正文：单独渲染，避免与 paragraphs 的 ForEach key 冲突。
+  streamingText: string = '';
   streamBuffer: string = '';
   reasoning: string = '';
   logs: string[] = [];
@@ -38,12 +40,20 @@ class DshChannel {
   phase: string = '空闲';
   activeMessageId: number = -1;
   cursor: number = 0;
+  historyLoaded: boolean = false;
+  historyLoading: boolean = false;
+  // 状态版本号：running/phase 变化时自增，用来驱动标签栏重绘。
+  // ForEach 按 key 复用节点，只改字段不会刷新。
+  revision: number = 0;
+  // 实例标识：用于确认各处拿到的是同一个对象（排查引用丢失）。
+  instanceId: number = 0;
   unsubscribe: (() => void) | null = null;
   lastError: string = '';
 
   constructor(sessionId: string, title: string) {
     this.sessionId = sessionId;
     this.title = title;
+    this.instanceId = Math.floor(Math.random() * 100000);
   }
 }
 
@@ -84,6 +94,15 @@ struct ChatMessageView {
               if (start >= 0 && end > start) { this.onSelect(); }
             })
         }, (text: string, index: number): string => this.message.id + '-body-' + index)
+        // 流式正文单独一个 Text：ForEach 按 key 复用节点，同 key 改内容不保证刷新。
+        if (this.message.streamingText.length > 0) {
+          Text(this.message.streamingText).fontSize(15).lineHeight(23)
+            .fontColor('#202124').width('100%').copyOption(CopyOptions.LocalDevice)
+            .textSelectable(TextSelectableMode.SELECTABLE_FOCUSABLE)
+            .onTextSelectionChange((start: number, end: number): void => {
+              if (start >= 0 && end > start) { this.onSelect(); }
+            })
+        }
         if (this.message.role === 'assistant') {
           if (this.message.status === 'running') {
             Row({ space: 8 }) {
@@ -159,6 +178,12 @@ struct Index {
   @State dshSessionId: string = '';
   @State dshChannels: DshChannel[] = [];
   @State dshChannelId: string = '';
+  // 当前会话消息的镜像：与普通模式的 @State messages 一样由页面直接持有，
+  // ForEach 才能可靠刷新。channel.messages 仍是数据源，写入后同步到这里。
+  @State dshViewMessages: ChatMessage[] = [];
+  // 页面级状态版本：channel.running/phase 变化时自增，
+  // 让输入区的“发送/停止”按钮重新求值（ArkUI 只追踪 @State 读取）。
+  @State dshRevision: number = 0;
   @State dshLoading: boolean = false;
   @State dshPresets: DshPreset[] = [];
   @State dshPresetId: string = '';
@@ -201,6 +226,21 @@ struct Index {
     try { inputMethod.getSetting().on('imeChange', this.imeChanged); } catch (e) {
       Logger.warn('输入法监听失败: ' + (e as Error).message);
     }
+    // 已有 cookie 时进页面就拉一次会话列表，不必手动点刷新。
+    this.autoLoadDsh();
+  }
+
+  // 启动时若已认证，自动连接并恢复会话列表与历史。
+  private async autoLoadDsh(): Promise<void> {
+    // 不自动切到 DSH 模式：开关默认关闭，由用户在设置里显式打开。
+    // 这里只预热会话列表，方便打开后立刻有数据。
+    if (this.dshCookie.length === 0) { return; }
+    try {
+      await this.refreshDshSessions();
+      await this.loadCurrentHistory();
+    } catch (e) {
+      Logger.warn('[DSH] 自动加载失败: ' + (e as Error).message);
+    }
   }
 
   aboutToDisappear(): void {
@@ -230,6 +270,16 @@ struct Index {
       this.keyboardNotice = '无法打开输入法选择框，请稍后重试。';
       Logger.warn((e as Error).message);
     }
+  }
+
+  // ArkUI 的 @Observed 只追踪属性赋值，不追踪数组原地 push，
+  // 因此所有对 channel.messages 的增删都走这里，整体替换数组。
+  private appendMessage(channel: DshChannel, message: ChatMessage): void {
+    let next: ChatMessage[] = [];
+    for (let i = 0; i < channel.messages.length; i++) { next.push(channel.messages[i]); }
+    next.push(message);
+    channel.messages = next;
+    this.syncDshView();
   }
 
   private updateMessage(id: number, update: (message: ChatMessage) => void): void {
@@ -300,6 +350,9 @@ struct Index {
       this.dshCookie = '';
       this.resetDshClient();
     }
+    // 关闭 DSH 时只摘订阅，不碰 running/timer：
+    // 那两个是普通模式 AgentRunner 的状态，误清会打断正在跑的任务。
+    if (!this.dshMode) { this.stopAllDshStreams(); }
     this.showSettings = false;
   }
 
@@ -367,9 +420,12 @@ struct Index {
     }
   }
 
-  // 按会话补建/更新 channel。已存在的 channel 保留消息与订阅，只更新标题与运行状态。
+  // 按会话补建/更新 channel。
+  // 必须复用已有对象：runDshTask 持有 channel 引用，重建数组会让它指向旧对象，
+  // 之后的帧就写不进界面上显示的那一个。本地已存在但列表里暂缺的也保留，
+  // 因为 session/list 可能还没跟上刚创建的会话。
   private syncChannels(sessions: DshSession[]): void {
-    let next: DshChannel[] = [];
+    let incoming: DshChannel[] = [];
     for (let i = 0; i < sessions.length; i++) {
       let session = sessions[i];
       let channel = this.findChannel(session.sessionId);
@@ -378,20 +434,36 @@ struct Index {
           session.title.length > 0 ? session.title : session.sessionId.substring(0, 12));
       } else {
         if (session.title.length > 0) { channel.title = session.title; }
-        // 宿主侧已不在跑，而本地还在等，说明回合已经结束或事件流断过。
-        if (!session.running && channel.running && channel.stopping) {
-          channel.phase = '已停止';
+        // 宿主侧已不在跑，而本地仍标记运行中：说明漏了 turn/end，
+        // 这里直接收尾，避免界面永远停在“运行中”。
+        if (!session.running && channel.running) {
+          let id = channel.activeMessageId;
+          let final = id >= 0 ? this.lastContent(channel, id) : '';
+          this.logTo(channel, id, 'TASK END: 远端已结束（列表校正）');
+          this.finishDshRun(channel,
+            final.length > 0 ? final : 'DSH 回合已结束。',
+            final.length > 0 ? 'success' : 'failed', '');
         }
       }
-      next.push(channel);
+      incoming.push(channel);
     }
-    this.dshChannels = next;
+    // 保留本地有、远端暂时没有的 channel（按 updatedAt 排在后面）。
+    for (let i = 0; i < this.dshChannels.length; i++) {
+      let local = this.dshChannels[i];
+      let seen = false;
+      for (let j = 0; j < incoming.length; j++) {
+        if (incoming[j].sessionId === local.sessionId) { seen = true; break; }
+      }
+      if (!seen) { incoming.push(local); }
+    }
+    this.dshChannels = incoming;
     if (this.dshChannelId.length === 0 || this.findChannel(this.dshChannelId) === undefined) {
-      this.dshChannelId = sessions.length > 0 ? sessions[0].sessionId : '';
+      this.dshChannelId = incoming.length > 0 ? incoming[0].sessionId : '';
     }
-    if (this.dshSessionId.length === 0 && sessions.length > 0) {
-      this.dshSessionId = sessions[0].sessionId;
+    if (this.dshSessionId.length === 0 && incoming.length > 0) {
+      this.dshSessionId = incoming[0].sessionId;
     }
+    this.syncDshView();
   }
 
   private findChannel(sessionId: string): DshChannel | undefined {
@@ -400,6 +472,24 @@ struct Index {
 
   private currentChannel(): DshChannel | undefined {
     return this.findChannel(this.dshChannelId);
+  }
+
+  private currentChannelTitle(): string {
+    let channel = this.currentChannel();
+    if (channel === undefined) { return '会话'; }
+    return channel.title.length > 0 ? channel.title : channel.sessionId.substring(0, 12);
+  }
+
+  // 把当前会话的消息同步到页面级 @State，ForEach 才会刷新。
+  private syncDshView(): void {
+    let channel = this.currentChannel();
+    if (channel === undefined) {
+      if (this.dshViewMessages.length > 0) { this.dshViewMessages = []; }
+      return;
+    }
+    let next: ChatMessage[] = [];
+    for (let i = 0; i < channel.messages.length; i++) { next.push(channel.messages[i]); }
+    this.dshViewMessages = next;
   }
 
   private currentChannelRunning(): boolean {
@@ -515,23 +605,26 @@ struct Index {
     let channel = this.findChannel(target);
     if (channel === undefined) {
       channel = new DshChannel(target, target.substring(0, 12));
-      this.dshChannels.push(channel);
+      // 整体替换 @State 数组，避免原地 push 不触发刷新。
+      let next: DshChannel[] = [];
+      for (let i = 0; i < this.dshChannels.length; i++) { next.push(this.dshChannels[i]); }
+      next.push(channel);
+      this.dshChannels = next;
     }
     this.dshChannelId = target;
     this.dshSessionId = target;
     if (channel.running) {
       // 同一会话已在跑：DSH 会排队，本地继续累积到同一个回复气泡。
       this.logTo(channel, channel.activeMessageId, '[DSH] 会话执行中，新消息已排队');
+      this.verifyChannelRunning(channel);
     } else {
-      channel.running = true;
-      channel.stopping = false;
+      this.setChannelRunning(channel, true, false, '连接 DSH');
       let id = this.nextId++;
       channel.activeMessageId = id;
       let message = new ChatMessage(id, 'assistant');
       message.status = 'running';
       message.phase = '连接 DSH';
-      channel.messages.push(message);
-      channel.phase = '连接 DSH';
+      this.appendMessage(channel, message);
       channel.lastError = '';
       this.bindDshChannel(channel);
     }
@@ -562,9 +655,12 @@ struct Index {
       (message: string): void => {
         Logger.warn('[DSH] ' + sessionId + ' stream: ' + message);
         channel.lastError = message;
+        // 断流时本地状态可能永远停在“运行中”，交给会话列表校验。
+        this.verifyChannelRunning(channel);
       },
       (): void => {
         this.reconcileDshHistory(channel);
+        this.verifyChannelRunning(channel);
       });
   }
 
@@ -633,7 +729,8 @@ struct Index {
     return message === undefined ? '' : message.streamBuffer;
   }
 
-  // 重连后事件可能断档：用 session/page 从游标往前拉一段，覆盖本地正文。
+  // 重连后事件可能断档：向前补拉一段，只取最后一个完整回合。
+  // 不能把整段历史拼起来覆盖正文，否则当前气泡会被上一轮的回复占满。
   private async reconcileDshHistory(channel: DshChannel): Promise<void> {
     if (!channel.running) { return; }
     let id = channel.activeMessageId;
@@ -642,16 +739,27 @@ struct Index {
     if (cursor <= 0) { return; }
     try {
       let frames = await this.currentDsh().page(channel.sessionId, cursor, 30);
-      let text = '';
-      for (let i = 0; i < frames.length; i++) {
-        if (frames[i].role === 'user') { text = ''; continue; }
-        if (frames[i].eventType === 'turn/end') { text = ''; continue; }
-        text += frames[i].text;
+      // 从后往前找最后一个回合：遇到 turn/end 开始收集，遇到 user/message 停止。
+      let turns: string[] = [];
+      let current = '';
+      let collecting = false;
+      for (let i = frames.length - 1; i >= 0; i--) {
+        let frame = frames[i];
+        if (frame.eventType === 'turn/end') {
+          if (current.length > 0) { turns.unshift(current); current = ''; }
+          collecting = true;
+          continue;
+        }
+        if (frame.role === 'user') {
+          if (current.length > 0) { turns.unshift(current); current = ''; }
+          break;
+        }
+        if (collecting && frame.text.length > 0) { current = frame.text + current; }
       }
+      let text = turns.length > 0 ? turns[turns.length - 1] : current;
       if (text.length === 0) { return; }
       let message = channel.messages.find((item: ChatMessage): boolean => item.id === id);
       if (message === undefined) { return; }
-      // 只在历史比本地更长时覆盖，避免把刚到的增量顶掉。
       if (text.length > message.streamBuffer.length) {
         message.streamBuffer = text;
         this.contentTo(channel, id, text, true);
@@ -662,7 +770,8 @@ struct Index {
   }
 
   private finishDshRun(channel: DshChannel, summary: string, status: string, task: string): void {
-    this.stopDshChannel(channel);
+    // 订阅保留：WebSocket 按会话常驻，跨回合复用。
+    // 若在这里关掉，下一轮重连会收到覆盖全部历史的 snapshot，正文会被旧内容重放。
     let id = channel.activeMessageId;
     if (id >= 0) {
       let message = channel.messages.find((item: ChatMessage): boolean => item.id === id);
@@ -676,11 +785,10 @@ struct Index {
         message.finishedAt = Date.now();
       }
     }
-    channel.running = false;
-    channel.stopping = false;
-    channel.phase = '空闲';
+    this.setChannelRunning(channel, false, false, '空闲');
     channel.activeMessageId = -1;
-    if (this.runningChannels() === 0) {
+    // 普通任务仍在跑时不能关秒表。
+    if (this.runningChannels() === 0 && this.runner === null) {
       clearInterval(this.timer);
       this.timer = -1;
       this.phase = '空闲';
@@ -696,8 +804,7 @@ struct Index {
     let channel = this.currentChannel();
     if (channel === undefined) { return; }
     if (!channel.running || channel.stopping) { return; }
-    channel.stopping = true;
-    this.setChannelPhase(channel, '正在取消 DSH 回合');
+    this.setChannelRunning(channel, true, true, '正在取消 DSH 回合');
     try {
       await this.currentDsh().cancel(channel.sessionId);
     } catch (e) {
@@ -717,8 +824,9 @@ struct Index {
     return count;
   }
 
+  // 只负责驱动秒表刷新；running 归普通模式的 AgentRunner 独占，
+  // DSH 是否在跑看 runningChannels()，两者不能共用一个字段。
   private ensureTimer(): void {
-    this.running = true;
     if (this.timer >= 0) { return; }
     this.now = Date.now();
     this.timer = setInterval((): void => { this.now = Date.now(); }, 1000);
@@ -732,12 +840,49 @@ struct Index {
       message.status = 'failed';
       message.paragraphs = [text];
       message.finishedAt = Date.now();
-      channel.messages.push(message);
+      this.appendMessage(channel, message);
+    }
+  }
+
+  // 修改 channel 运行状态并推进版本号，标签栏才会重绘。
+  private setChannelRunning(channel: DshChannel, running: boolean, stopping: boolean, phase: string): void {
+    channel.running = running;
+    channel.stopping = stopping;
+    channel.phase = phase;
+    channel.revision = channel.revision + 1;
+    this.dshRevision = this.dshRevision + 1;
+  }
+
+  // 用宿主的真实状态校正本地 running：
+  // 断流、重连、或错过 turn/end 时，本地可能一直显示“运行中”。
+  private async verifyChannelRunning(channel: DshChannel): Promise<void> {
+    if (!channel.running) { return; }
+    try {
+      let sessions = await this.currentDsh().listSessions();
+      let remote: DshSession | undefined =
+        sessions.find((item: DshSession): boolean => item.sessionId === channel.sessionId);
+      if (remote === undefined) { return; }
+      if (remote.running) {
+        // 宿主还在跑，保持本地状态，补充一次历史以防漏帧。
+        this.reconcileDshHistory(channel);
+        return;
+      }
+      // 宿主已结束：收尾当前气泡，避免永远停在“运行中”。
+      let id = channel.activeMessageId;
+      let final = id >= 0 ? this.lastContent(channel, id) : '';
+      this.logTo(channel, id, 'TASK END: 远端已结束（本地未收到 turn/end）');
+      this.finishDshRun(channel,
+        final.length > 0 ? final : 'DSH 回合已结束。',
+        final.length > 0 ? 'success' : 'failed', '');
+    } catch (e) {
+      Logger.warn('[DSH] 校验会话状态失败: ' + (e as Error).message);
     }
   }
 
   private setChannelPhase(channel: DshChannel, phase: string): void {
     channel.phase = phase;
+    channel.revision = channel.revision + 1;
+    this.dshRevision = this.dshRevision + 1;
     let message = channel.messages.find((item: ChatMessage): boolean => item.id === channel.activeMessageId);
     if (message !== undefined) {
       message.phase = phase;
@@ -746,19 +891,22 @@ struct Index {
     }
   }
 
+  // 流式正文写 streamingText（单独一个 Text 直接绑定，内容变化必刷新）；
+  // replace=false 追加一段独立正文，用于工具回执这类一次性文字。
   private contentTo(channel: DshChannel, id: number, text: string, replace: boolean = false): void {
     let message = channel.messages.find((item: ChatMessage): boolean => item.id === id);
     if (message !== undefined) {
       if (replace) {
-        if (message.paragraphs.length === 0) {
-          message.paragraphs.push(text);
-        } else {
-          message.paragraphs[message.paragraphs.length - 1] = text;
-        }
-      } else if (message.paragraphs[message.paragraphs.length - 1] !== text) {
-        message.paragraphs.push(text);
+        message.streamingText = text;
+      } else if (text.length > 0 &&
+        (message.paragraphs.length === 0 || message.paragraphs[message.paragraphs.length - 1] !== text)) {
+        let next: string[] = [];
+        for (let i = 0; i < message.paragraphs.length; i++) { next.push(message.paragraphs[i]); }
+        next.push(text);
+        message.paragraphs = next;
       }
       message.lastEventAt = Date.now();
+      this.syncDshView();
     }
     if (channel.sessionId === this.dshChannelId) { this.followOutput(); }
   }
@@ -783,7 +931,7 @@ struct Index {
       if (channel !== undefined) {
         let userMessage = new ChatMessage(this.nextId++, 'user');
         userMessage.paragraphs = [task];
-        channel.messages.push(userMessage);
+        this.appendMessage(channel, userMessage);
       }
       this.runDshTask(task);
       return;
@@ -1044,7 +1192,65 @@ struct Index {
     this.dshChannelId = sessionId;
     this.dshSessionId = sessionId;
     this.following = true;
+    this.bindDshChannelIfNeeded();
+    this.syncDshView();
     this.refreshKeyboard();
+    this.loadCurrentHistory();
+  }
+
+  // 会话切过来时若还没订阅，补建一条 follow，拿到 cursor 后才能拉历史。
+  private bindDshChannelIfNeeded(): void {
+    let channel = this.currentChannel();
+    if (channel === undefined) { return; }
+    if (channel.unsubscribe === null) { this.bindDshChannel(channel); }
+  }
+
+  // 进入会话时拉最近一段历史，填充消息列表；已加载过的不重复拉。
+  private async loadCurrentHistory(): Promise<void> {
+    let channel = this.currentChannel();
+    if (channel === undefined || channel.historyLoaded) { return; }
+    if (channel.cursor <= 0) {
+      // 等 snapshot 到达后再试一次。
+      setTimeout((): void => { this.loadCurrentHistory(); }, 800);
+      return;
+    }
+    channel.historyLoading = true;
+    try {
+      let frames = await this.currentDsh().page(channel.sessionId, channel.cursor, 60);
+      let loaded: ChatMessage[] = [];
+      for (let i = 0; i < frames.length; i++) {
+        let frame = frames[i];
+        if (frame.text.length === 0) { continue; }
+        if (frame.role === 'user') {
+          let userMessage = new ChatMessage(this.nextId++, 'user');
+          userMessage.paragraphs = [frame.text];
+          userMessage.status = 'success';
+          userMessage.finishedAt = Date.now();
+          loaded.push(userMessage);
+          continue;
+        }
+        if (frame.eventType === 'assistant/message') {
+          let assistantMessage = new ChatMessage(this.nextId++, 'assistant');
+          assistantMessage.streamingText = frame.text;
+          assistantMessage.streamBuffer = frame.text;
+          assistantMessage.status = 'success';
+          assistantMessage.finishedAt = Date.now();
+          loaded.push(assistantMessage);
+        }
+      }
+      if (loaded.length === 0) { channel.historyLoaded = true; return; }
+      // 历史放在已有实时消息之前，避免覆盖本轮刚收到的内容。
+      let merged: ChatMessage[] = loaded;
+      for (let i = 0; i < channel.messages.length; i++) { merged.push(channel.messages[i]); }
+      channel.messages = merged;
+      channel.historyLoaded = true;
+      this.syncDshView();
+      this.followOutput();
+    } catch (e) {
+      Logger.warn('[DSH] 加载历史失败: ' + (e as Error).message);
+    } finally {
+      channel.historyLoading = false;
+    }
   }
 
   // 并行会话标签栏：横向滚动，每个会话显示标题与运行状态徽标。
@@ -1068,7 +1274,7 @@ struct Index {
             .backgroundColor(channel.sessionId === this.dshChannelId ? '#3478F6' : '#EEF1F6')
             .borderRadius(14)
             .onClick((): void => { this.selectChannel(channel.sessionId); })
-          }, (channel: DshChannel): string => channel.sessionId)
+          }, (channel: DshChannel): string => channel.sessionId + '#' + channel.revision)
         }
       }
       .scrollable(ScrollDirection.Horizontal)
@@ -1085,24 +1291,6 @@ struct Index {
   }
 
   @Builder
-  channelMessages(channel: DshChannel) {
-    Column() {
-      if (channel.messages.length === 0) {
-        Text('在「' + (channel.title.length > 0 ? channel.title : channel.sessionId.substring(0, 12)) + '」里输入消息。')
-          .fontSize(14).fontColor('#6B7280').padding(20)
-      }
-      ForEach(channel.messages, (message: ChatMessage): void => {
-        ChatMessageView({ message: message, now: this.now,
-          onSelect: (): void => { this.following = false; }, onToggle: (id: number): void => {
-          this.following = false;
-          let item = channel.messages.find((candidate: ChatMessage): boolean => candidate.id === id);
-          if (item !== undefined) { item.collapsed = !item.collapsed; }
-        } })
-      }, (message: ChatMessage): string => channel.sessionId + '-msg-' + message.id)
-    }.width('100%').padding({ left: 10, right: 10 })
-  }
-
-  @Builder
   mainContent() {
     Column() {
       Row() {
@@ -1114,24 +1302,30 @@ struct Index {
         } else {
           Text(this.phase).fontSize(11).fontColor('#6B7280').margin({ right: 8 })
         }
-        Button(this.showSettings ? '关闭' : '设置').fontSize(12).height(30).enabled(!this.running)
+        // 设置面板随时可开：running 只表示有任务在跑，不该拦住配置入口。
+        Button(this.showSettings ? '关闭' : '设置').fontSize(12).height(30)
           .onClick((): void => { this.showSettings = !this.showSettings; })
       }.width('100%').padding(12)
       if (this.showSettings) { this.settingsPanel() }
       if (this.dshMode) {
         this.channelBar()
         Scroll(this.scroller) {
-          if (this.currentChannel() !== undefined) {
-            this.channelMessages(this.currentChannel() as DshChannel)
-          } else {
-            Column() {
-              Text('还没有 DSH 会话。')
+          Column() {
+            if (this.dshViewMessages.length === 0) {
+              Text(this.dshChannels.length === 0 ?
+                '还没有 DSH 会话，点右上角 + 新建。' : '在「' + this.currentChannelTitle() + '」里输入消息。')
                 .fontSize(14).fontColor('#6B7280').padding(20)
-              Button('新建会话').fontSize(13).height(34)
-                .enabled(!this.dshLoading)
-                .onClick((): void => { this.createDshSession(); })
-            }.width('100%')
-          }
+            }
+            ForEach(this.dshViewMessages, (message: ChatMessage): void => {
+              ChatMessageView({ message: message, now: this.now,
+                onSelect: (): void => { this.following = false; },
+                onToggle: (id: number): void => {
+                  this.following = false;
+                  let item = this.dshViewMessages.find((candidate: ChatMessage): boolean => candidate.id === id);
+                  if (item !== undefined) { item.collapsed = !item.collapsed; }
+                } })
+            }, (message: ChatMessage): string => 'dsh-msg-' + message.id)
+          }.width('100%')
         }
         .layoutWeight(1).width('100%').align(Alignment.Top)
         .onTouch((event: TouchEvent): void => {
@@ -1166,7 +1360,8 @@ struct Index {
       }
       Row({ space: 8 }) {
         Text(this.keyboardLabel).fontSize(11).fontColor('#6B7280').layoutWeight(1)
-        Button('切换输入法').fontSize(11).height(28).enabled(!this.running)
+        Button('切换输入法').fontSize(11).height(28)
+          .enabled(this.dshMode ? true : !this.running)
           .onClick((): void => { this.chooseKeyboard(); })
       }.width('100%').padding({ left: 12, right: 12, top: 4, bottom: 4 })
       if (this.keyboardNotice) {
@@ -1180,7 +1375,8 @@ struct Index {
           .onChange((value: string): void => { this.inputText = value; })
           .onSubmit((): void => { this.send(); })
         if (this.dshMode) {
-          if (this.currentChannelRunning()) {
+          // 读取 dshRevision 建立依赖：channel.running 变化后按钮才会切换。
+          if (this.dshRevision >= 0 && this.currentChannelRunning()) {
             Button(this.currentChannelStopping() ? '停止中' : '停止').height(42).backgroundColor('#D9534F')
               .enabled(!this.currentChannelStopping())
               .onClick((): void => { this.stopDsh(); })

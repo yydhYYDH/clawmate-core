@@ -7,12 +7,35 @@
   },
   "production": {
     "addedSysCaps": [],
-    // 目标设备（OpenHarmony 5.1.0 / API 18）实际 275 个系统能力，与 default.json 的 227 个
-    // 恰好相差以下 3 个。将它们从 App 需求集合移除，避免安装时系统能力校验失败。
+    // 目标设备（OpenHarmony 5.1.0 / API 18）的系统能力集合小于 compileSdk 23 的默认集合。
+    // 这里把 App 不需要、但默认被打包进去的能力移除，否则安装时系统能力校验会失败。
+    // 分两类：
+    //   1) 设备完全没有、App 也用不到（通话、蓝牙、DRM、分布式、企业管控等）；
+    //   2) 设备有但集合略有差异的少数几项。
     "removedSysCaps": [
+      // 目标设备与 default.json 的差异项
       "SystemCapability.Communication.FusionConnectivity.Core",
       "SystemCapability.Test.PerfTest",
-      "SystemCapability.Applications.IntelligentScene"
+      "SystemCapability.Applications.IntelligentScene",
+      // 通话 / 蜂窝（开发板无基带）
+      "SystemCapability.Telephony.CellularData",
+      "SystemCapability.Telephony.CoreService",
+      "SystemCapability.Telephony.StateRegistry",
+      "SystemCapability.Telephony.SmsMms",
+      "SystemCapability.Telephony.CallManager",
+      // 无线
+      "SystemCapability.Communication.Bluetooth.Core",
+      "SystemCapability.Communication.WiFi.P2P",
+      // 多媒体扩展（App 只用截图与 IME，不做转码与 DRM）
+      "SystemCapability.Multimedia.Media.AVTranscoder",
+      "SystemCapability.Multimedia.Drm.Core",
+      // 分布式数据与设备管理
+      "SystemCapability.DistributedDataManager.KVStore.Core",
+      "SystemCapability.DistributedDataManager.DataObject.DistributedObject",
+      "SystemCapability.DistributedHardware.DeviceManager",
+      // 应用市场 / 企业管理
+      "SystemCapability.BundleManager.AppDomainVerify",
+      "SystemCapability.Customization.EnterpriseDeviceManager"
     ]
   }
 }

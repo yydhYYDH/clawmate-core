@@ -16,6 +16,8 @@
 
 import { http, webSocket } from '@kit.NetworkKit';
 import { BusinessError } from '@kit.BasicServicesKit';
+import { util } from '@kit.ArkTS';
+import { hilog } from '@kit.PerformanceAnalysisKit';
 import { JSON as ArkJSON } from '@kit.ArkTS';
 
 export interface DshConfig {
@@ -287,11 +289,17 @@ interface FollowStreamArgs {
   request: FollowStreamRequest;
 }
 
+// open 帧的 payload 也必须包一层 {args: ...}，否则宿主报
+// "Remote payload must contain exactly one plain-object args field"。
+interface StreamPayload {
+  args: FollowStreamArgs;
+}
+
 interface OpenStreamFrame {
   type: string;
   streamId: string;
   endpoint: string;
-  payload: FollowStreamArgs;
+  payload: StreamPayload;
 }
 
 interface WsHeaders {
@@ -320,8 +328,8 @@ export function normalizeDshBase(input: string): string {
   return url;
 }
 
-// ArkTS 的响应头是 Object 且键名大小写不确定；
-// 先序列化成 JSON 文本再按 set-cookie 取值，避免依赖对象索引。
+// ArkTS 的响应头是 Object，键名大小写不确定（'Set-Cookie' / 'set-cookie'）。
+// 先整体序列化再定位，避免依赖索引签名（ArkTS 不允许）。
 function setCookieOf(headers: Object): string {
   let text = '';
   try {
@@ -329,22 +337,29 @@ function setCookieOf(headers: Object): string {
   } catch (e) {
     return '';
   }
-  let marker = '"set-cookie":"';
-  let at = text.toLowerCase().indexOf(marker);
+  let lower = text.toLowerCase();
+  let at = lower.indexOf('"set-cookie"');
   if (at < 0) { return ''; }
-  let start = at + marker.length;
+  // 跳到该键对应的值（":" 之后的下一个 '"'）
+  let colon = text.indexOf(':', at);
+  if (colon < 0) { return ''; }
+  let start = text.indexOf('"', colon + 1);
+  if (start < 0) { return ''; }
   let value = '';
-  for (let i = start; i < text.length; i++) {
+  for (let i = start + 1; i < text.length; i++) {
     let ch = text.charAt(i);
-    if (ch === '"') {
-      // 跳过转义的引号
-      let backslashes = 0;
-      for (let j = i - 1; j >= start && text.charAt(j) === '\\'; j--) { backslashes++; }
-      if (backslashes % 2 === 0) { break; }
+    if (ch === '\\') {
+      // 保留被转义的字符（\" -> "）
+      if (i + 1 < text.length) {
+        value += text.charAt(i + 1);
+        i++;
+      }
+      continue;
     }
+    if (ch === '"') { break; }
     value += ch;
   }
-  return value.replace(/\\"/g, '"');
+  return value;
 }
 
 // 从 Set-Cookie 里挑出 dsh-auth-*，返回 "name=value" 形式。
@@ -400,9 +415,22 @@ export async function dshAuthenticate(baseUrl: string, token: string): Promise<s
     expectDataType: http.HttpDataType.STRING
   };
   let request = http.createHttp();
+  // http.request 会自动跟随 3xx，而 dsh 的 cookie 只挂在第一跳（303/302）上。
+  // headersReceive 在每个响应头到达时触发，重定向发生前先把它截下来。
+  let captured = '';
+  let onHeaders = (header: Object): void => {
+    if (captured.length > 0) { return; }
+    let raw = setCookieOf(header);
+    if (raw.length > 0) { captured = raw; }
+  };
+  request.on('headersReceive', onHeaders);
   try {
     let response = await request.request(url, options);
-    let raw = setCookieOf(response.header as Object);
+    let raw = captured;
+    if (raw.length === 0) {
+      // 少数实现不会为重定向跳转触发 headersReceive，兜底看最终响应。
+      raw = setCookieOf(response.header as Object);
+    }
     if (raw.length === 0) {
       throw new Error('DSH 未下发认证 cookie（HTTP ' + response.responseCode + '），token 可能已失效');
     }
@@ -412,6 +440,7 @@ export async function dshAuthenticate(baseUrl: string, token: string): Promise<s
     }
     return cookie;
   } finally {
+    try { request.off('headersReceive', onHeaders); } catch (e) { /* 已结束。 */ }
     try { request.destroy(); } catch (e) { /* 已结束。 */ }
   }
 }
@@ -460,7 +489,10 @@ function chunkReasoning(chunk: MuxChunk | undefined): string {
   return chunk.text === undefined ? '' : chunk.text;
 }
 
-function isOkCode(err: Object): boolean {
+// WebSocket 回调首参在成功时是 undefined，必须先判空再访问字段，
+// 否则 ArkTS 把 undefined 转成接口类型会抛 TypeError 而不是返回 undefined。
+function isOkCode(err: Object | undefined): boolean {
+  if (err === undefined || err === null) { return true; }
   let status = err as MuxStatusCode;
   let code = status.code;
   return code === undefined || code === null || code === 0;
@@ -728,10 +760,12 @@ export class DshClient {
 
     let connect = (): void => {
       if (closed) { return; }
+      // 每次新建连接都重置 opened，否则重连失败会被当成首次成功。
+      opened = false;
       let ws = webSocket.createWebSocket();
       socket = ws;
 
-      ws.on('open', (err: Object, value: Object): void => {
+      ws.on('open', (err: Object | undefined, value: Object | undefined): void => {
         if (closed) { return; }
         opened = true;
         if (!isOkCode(err)) { onError('DSH 事件流打开失败'); return; }
@@ -739,21 +773,35 @@ export class DshClient {
         let address: FollowAddress = { kind: 'session', sessionId: sessionId };
         let request: FollowStreamRequest = { address: address, maxMessages: 50, assistantStream: true };
         let args: FollowStreamArgs = { request: request };
+        let payload: StreamPayload = { args: args };
         let frame: OpenStreamFrame = {
           type: 'open',
           streamId: streamId,
           endpoint: 'session/follow',
-          payload: args
+          payload: payload
         };
         ws.send(ArkJSON.stringify(frame));
       });
 
-      ws.on('message', (err: Object, value: Object): void => {
-        if (closed) { return; }
-        handleMuxMessage(value as string, onFrame, onError);
+      ws.on('message', (err: Object | undefined, value: Object | undefined): void => {
+        if (closed || value === undefined || value === null) { return; }
+        // 宿主可能下发二进制帧，也可能是 UTF-8 文本；两种都先归一化成字符串。
+        let text = '';
+        if (typeof value === 'string') {
+          text = value;
+        } else {
+          try {
+            let decoder = new util.TextDecoder('utf-8');
+            text = decoder.decodeToString(new Uint8Array(value as ArrayBuffer));
+          } catch (e) {
+            hilog.warn(0x0000, 'ClawMateCore', '[DSH] decode frame failed');
+            return;
+          }
+        }
+        handleMuxMessage(text, onFrame, onError);
       });
 
-      ws.on('close', (err: Object, value: Object): void => {
+      ws.on('close', (err: Object | undefined, value: Object | undefined): void => {
         if (closed) { return; }
         socket = null;
         if (!opened) { onError('DSH 事件流连接失败'); }
@@ -815,8 +863,10 @@ function handleMuxMessage(text: string, onFrame: (frame: DshFollowFrame) => void
   try {
     message = ArkJSON.parse(text) as MuxServerMessage;
   } catch (e) {
+    hilog.warn(0x0000, 'ClawMateCore', '[DSH] bad frame: %{public}s', text.substring(0, 120));
     return;
   }
+
   if (message.type === 'error') {
     let error = message.error;
     let detail = error === undefined || error === null || error.message === undefined ?
@@ -830,12 +880,8 @@ function handleMuxMessage(text: string, onFrame: (frame: DshFollowFrame) => void
   let cursor = value.cursor === undefined ? 0 : value.cursor;
 
   if (value.type === 'snapshot') {
-    let records = value.records === undefined ? [] : value.records;
-    for (let i = 0; i < records.length; i++) {
-      let event = records[i].event;
-      if (event === undefined || event === null) { continue; }
-      emitEvent(event, cursor, onFrame);
-    }
+    // snapshot 是打开时的历史快照：只用来对齐游标，绝不回放正文。
+    // 之前把 records 逐条 emit 会重放整段历史，导致新一轮回复被旧内容覆盖。
     let snap: DshFollowFrame = {
       kind: 'snapshot', seq: cursor, cursor: cursor, eventType: 'snapshot', role: '', text: ''
     };

@@ -13,7 +13,11 @@
 /.clang-tidy
 **/.test
 /.appanalyzer
-
-# 本机签名配置（含证书路径与密码），不入库；模板见 build-profile.example.json5
-/build-profile.json5
 /**/.preview
+
+# 本机签名配置：含 OpenHarmony 证书路径与密码，不入库。
+# 模板见 build-profile.example.json5，首次使用请在 DevEco 里自动生成签名。
+/build-profile.json5
+
+# 本地凭证与临时文件
+.token
