@@ -13,3 +13,7 @@
 /.clang-tidy
 **/.test
 /.appanalyzer
+
+# 本机签名配置（含证书路径与密码），不入库；模板见 build-profile.example.json5
+/build-profile.json5
+/**/.preview

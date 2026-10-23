@@ -1,0 +1,53 @@
+{
+  // 复制本文件为 build-profile.json5 后使用。
+  // build-profile.json5 已被 .gitignore 忽略：它含本机签名证书路径与密码，不能提交。
+  //
+  // 首次使用：在 DevEco Studio 打开
+  //   File → Project Structure → Project → Signing Configs
+  //   （中文界面：文件 → 项目结构 → 项目 → 签名配置）
+  // 勾选「Automatically generate signature / 自动生成签名」，登录华为账号，
+  // DevEco 会把 signingConfigs 的 material 自动写进 build-profile.json5。
+  //
+  // 目标设备为 OpenHarmony 5.1.0 (API 18)，故 runtimeOS 必须是 OpenHarmony，
+  // 且证书须来自 ~/.ohos/config/openharmony/（不是 HarmonyOS 的证书）。
+  "app": {
+    "signingConfigs": [],
+    "products": [
+      {
+        "name": "default",
+        "compileSdkVersion": 23,
+        "compatibleSdkVersion": 18,
+        "runtimeOS": "OpenHarmony",
+        "buildOption": {
+          "strictMode": {
+            "caseSensitiveCheck": true,
+            "useNormalizedOHMUrl": true
+          }
+        },
+        "targetSdkVersion": 23
+      }
+    ],
+    "buildModeSet": [
+      {
+        "name": "debug"
+      },
+      {
+        "name": "release"
+      }
+    ]
+  },
+  "modules": [
+    {
+      "name": "entry",
+      "srcPath": "./entry",
+      "targets": [
+        {
+          "name": "default",
+          "applyToProducts": [
+            "default"
+          ]
+        }
+      ]
+    }
+  ]
+}

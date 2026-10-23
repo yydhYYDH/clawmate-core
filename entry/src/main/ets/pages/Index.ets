@@ -402,6 +402,16 @@ struct Index {
     return this.findChannel(this.dshChannelId);
   }
 
+  private currentChannelRunning(): boolean {
+    let channel = this.currentChannel();
+    return channel !== undefined && channel.running;
+  }
+
+  private currentChannelStopping(): boolean {
+    let channel = this.currentChannel();
+    return channel !== undefined && channel.stopping;
+  }
+
   private scheduleSessionRefresh(): void {
     if (this.dshRefreshTimer >= 0 || this.dshLoading) { return; }
     this.dshRefreshTimer = setTimeout((): void => {
@@ -1170,10 +1180,9 @@ struct Index {
           .onChange((value: string): void => { this.inputText = value; })
           .onSubmit((): void => { this.send(); })
         if (this.dshMode) {
-          let active = this.currentChannel();
-          if (active !== undefined && active.running) {
-            Button(active.stopping ? '停止中' : '停止').height(42).backgroundColor('#D9534F')
-              .enabled(!active.stopping)
+          if (this.currentChannelRunning()) {
+            Button(this.currentChannelStopping() ? '停止中' : '停止').height(42).backgroundColor('#D9534F')
+              .enabled(!this.currentChannelStopping())
               .onClick((): void => { this.stopDsh(); })
           } else {
             Button('发送').height(42).enabled(this.inputText.trim().length > 0 && !this.dshLoading)

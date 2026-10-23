@@ -1,7 +1,6 @@
 // 局域网 DSH（DeepSeek Harness）移动端通道客户端。
 //
-// 协议依据 dsh web（@deepseek-ai/dsh-client-connection + dsh-api-gateway），
-// 已在 yydh 真机链路上逐条验证：
+// 协议依据 dsh web（@deepseek-ai/dsh-client-connection + dsh-api-gateway）：
 //   - 认证：GET /?token=<launch-token> → 303 + Set-Cookie dsh-auth-<hash>=v1.<body>.<sig>
 //     cookie 名按 authority 的 sha256 生成，所以不能写死；一次换取 30 天有效。
 //   - 一元调用：POST /api/<ns>/<method>，body
@@ -11,10 +10,13 @@
 //     {"type":"open","streamId","endpoint":"session/follow","payload":{"args":{...}}}
 //     Host 回 {"type":"item","streamId","value":...} / {"type":"end","streamId"} / {"type":"error",...}
 // 全程只用 Cookie，不触碰宿主的其它 /api 面。
+//
+// ArkTS 约束：不能用索引签名、不能直接拿对象字面量当任意 JSON 用，
+// 所以每个请求/响应形状都声明成独立 interface，序列化交给 ArkJSON.stringify。
 
 import { http, webSocket } from '@kit.NetworkKit';
+import { BusinessError } from '@kit.BasicServicesKit';
 import { JSON as ArkJSON } from '@kit.ArkTS';
-import { WorkflowJsonMap } from './WorkflowTypes';
 
 export interface DshConfig {
   baseUrl: string;
@@ -45,7 +47,7 @@ export interface DshWorkspace {
   path: string;
 }
 
-// session/follow 下发的三种帧。
+// session/follow 下发的一帧。
 export interface DshFollowFrame {
   kind: string;          // snapshot | event | assistant-stream
   seq: number;
@@ -53,20 +55,96 @@ export interface DshFollowFrame {
   eventType: string;
   role: string;
   text: string;
-  raw: string;
 }
 
-interface RpcEnvelope {
+// ---- 请求体：每层一个 interface，绝不使用对象字面量当 JSON ----
+
+interface TextContent {
+  type: string;
+  text: string;
+}
+
+interface EmptyRequest {
+}
+
+interface SessionListArgs {
+  _request: EmptyRequest;
+}
+
+interface SessionIdPayload {
+  sessionId: string;
+}
+
+interface SessionIdArgs {
+  request: SessionIdPayload;
+}
+
+interface SessionRenamePayload {
+  sessionId: string;
+  title: string;
+}
+
+interface SessionRenameArgs {
+  request: SessionRenamePayload;
+}
+
+interface SessionCreatePayload {
+  workspaceId?: string;
+  cwd?: string;
+  agentPreset?: string;
+}
+
+interface SessionCreateArgs {
+  request: SessionCreatePayload;
+}
+
+interface SessionPromptPayload {
+  requestId: string;
+  sessionId: string;
+  mode: string;
+  content: TextContent[];
+}
+
+interface SessionPromptArgs {
+  request: SessionPromptPayload;
+}
+
+interface FollowAddress {
+  kind: string;
+  sessionId: string;
+}
+
+interface SessionPagePayload {
+  address: FollowAddress;
+  throughSeq: number;
+  maxMessages: number;
+}
+
+interface SessionPageArgs {
+  request: SessionPagePayload;
+}
+
+interface RpcPayload<TArgs> {
+  args: TArgs;
+}
+
+interface RpcEnvelope<TArgs> {
   type: string;
   rpcId: string;
   method: string;
-  payload: WorkflowJsonMap;
+  payload: RpcPayload<TArgs>;
 }
 
-interface ServerResponse {
-  type?: string;
-  rpcId?: string;
-  result?: ServerResult;
+interface JsonHeaders {
+  'Content-Type': string;
+  'Cookie': string;
+}
+
+// ---- 响应体 ----
+
+interface ServerError {
+  code?: string;
+  message?: string;
 }
 
 interface ServerResult {
@@ -75,13 +153,20 @@ interface ServerResult {
   error?: ServerError;
 }
 
-interface ServerError {
-  code?: string;
-  message?: string;
+interface ServerResponse {
+  type?: string;
+  rpcId?: string;
+  result?: ServerResult;
 }
 
-interface SessionListValue {
-  items?: SessionItem[];
+interface ProjectionValues {
+  title?: string;
+  agentPreset?: string;
+}
+
+interface Projections {
+  asOfSeq?: number;
+  values?: ProjectionValues;
 }
 
 interface SessionItem {
@@ -94,23 +179,13 @@ interface SessionItem {
   projections?: Projections;
 }
 
-interface Projections {
-  asOfSeq?: number;
-  values?: ProjectionValues;
-}
-
-interface ProjectionValues {
-  title?: string;
-  agentPreset?: string;
+interface SessionListValue {
+  items?: SessionItem[];
 }
 
 interface CreatedSessionValue {
   sessionId?: string;
   agentPreset?: string;
-}
-
-interface PresetListValue {
-  presets?: PresetItem[];
 }
 
 interface PresetItem {
@@ -120,8 +195,8 @@ interface PresetItem {
   isDefault?: boolean;
 }
 
-interface WorkspaceListValue {
-  items?: WorkspaceItem[];
+interface PresetListValue {
+  presets?: PresetItem[];
 }
 
 interface WorkspaceItem {
@@ -130,26 +205,12 @@ interface WorkspaceItem {
   path?: string;
 }
 
-interface PageValue {
-  records?: PageRecord[];
-  hasMore?: boolean;
+interface WorkspaceListValue {
+  items?: WorkspaceItem[];
 }
 
-interface PageRecord {
+interface PageContent {
   type?: string;
-  event?: PageEvent;
-}
-
-interface PageEvent {
-  type?: string;
-  seq?: number;
-  data?: PageEventData;
-}
-
-interface PageEventData {
-  message?: PageMessage;
-  content?: PageContent[];
-  inserted?: PageMessage[];
   text?: string;
 }
 
@@ -158,47 +219,83 @@ interface PageMessage {
   content?: PageContent[];
 }
 
-interface PageContent {
+interface PageEventData {
+  message?: PageMessage;
+  content?: PageContent[];
+  inserted?: PageMessage[];
+}
+
+interface PageEvent {
+  type?: string;
+  seq?: number;
+  data?: PageEventData;
+}
+
+interface PageRecord {
+  type?: string;
+  event?: PageEvent;
+}
+
+interface PageValue {
+  records?: PageRecord[];
+  hasMore?: boolean;
+}
+
+// ---- WebSocket 流 ----
+
+interface MuxChunk {
   type?: string;
   text?: string;
 }
 
-interface MuxFrame {
+interface MuxAssistantFrame {
   type?: string;
-  streamId?: string;
-  value?: MuxValue;
-  error?: ServerError;
+  chunk?: MuxChunk;
+}
+
+interface MuxStatusCode {
+  code?: number;
+}
+
+interface MuxError {
+  code?: string;
+  message?: string;
 }
 
 interface MuxValue {
   type?: string;
-  header?: MuxHeader;
   cursor?: number;
   records?: PageRecord[];
   event?: PageEvent;
   frame?: MuxAssistantFrame;
 }
 
-interface MuxHeader {
-  id?: string;
-  cwd?: string;
-  agentPreset?: string;
+interface MuxServerMessage {
+  type?: string;
+  streamId?: string;
+  value?: MuxValue;
+  error?: MuxError;
 }
 
-interface MuxAssistantFrame {
-  type?: string;
-  chunk?: MuxChunkPayload;
+interface FollowStreamRequest {
+  address: FollowAddress;
+  maxMessages: number;
+  assistantStream: boolean;
 }
 
-// assistant-stream 的 chunk 是结构化块：block-start / text-delta / reasoning-delta /
-// tool-call-delta / block-end 等，只有 *-delta 携带可展示文本。
-interface MuxChunkPayload {
-  type?: string;
-  text?: string;
-  delta?: string;
-  content?: string;
-  blockType?: string;
-  index?: number;
+interface FollowStreamArgs {
+  request: FollowStreamRequest;
+}
+
+interface OpenStreamFrame {
+  type: string;
+  streamId: string;
+  endpoint: string;
+  payload: FollowStreamArgs;
+}
+
+interface WsHeaders {
+  'Cookie': string;
 }
 
 const AUTH_COOKIE_PREFIX: string = 'dsh-auth-';
@@ -223,18 +320,34 @@ export function normalizeDshBase(input: string): string {
   return url;
 }
 
-// ArkTS 的响应头是普通对象，键名大小写不确定，逐个找。
-function headerValue(headers: Object, name: string): string {
-  let record = headers as WorkflowJsonMap;
-  let lower = name.toLowerCase();
-  let keys = Object.keys(record);
-  for (let i = 0; i < keys.length; i++) {
-    if (keys[i].toLowerCase() === lower) { return String(record[keys[i]]); }
+// ArkTS 的响应头是 Object 且键名大小写不确定；
+// 先序列化成 JSON 文本再按 set-cookie 取值，避免依赖对象索引。
+function setCookieOf(headers: Object): string {
+  let text = '';
+  try {
+    text = ArkJSON.stringify(headers);
+  } catch (e) {
+    return '';
   }
-  return '';
+  let marker = '"set-cookie":"';
+  let at = text.toLowerCase().indexOf(marker);
+  if (at < 0) { return ''; }
+  let start = at + marker.length;
+  let value = '';
+  for (let i = start; i < text.length; i++) {
+    let ch = text.charAt(i);
+    if (ch === '"') {
+      // 跳过转义的引号
+      let backslashes = 0;
+      for (let j = i - 1; j >= start && text.charAt(j) === '\\'; j--) { backslashes++; }
+      if (backslashes % 2 === 0) { break; }
+    }
+    value += ch;
+  }
+  return value.replace(/\\"/g, '"');
 }
 
-// 从 Set-Cookie 里挑出 dsh-auth-*（多值响应头在不同实现里可能是逗号或数组）。
+// 从 Set-Cookie 里挑出 dsh-auth-*，返回 "name=value" 形式。
 function authCookieFrom(raw: string): string {
   let segments = raw.split(',');
   for (let i = 0; i < segments.length; i++) {
@@ -243,7 +356,7 @@ function authCookieFrom(raw: string): string {
       let piece = parts[j].trim();
       if (piece.startsWith(AUTH_COOKIE_PREFIX)) {
         let eq = piece.indexOf('=');
-        if (eq > 0) { return piece.substring(0, eq) + '=' + piece.substring(eq + 1); }
+        if (eq > 0) { return piece; }
       }
     }
   }
@@ -263,7 +376,7 @@ export function cookieHeaderValue(cookie: string): string {
 export function dshTokenFromLink(input: string): string {
   let text = input.trim();
   if (text.length === 0) { return ''; }
-  let markers = ['token=', 'pair='];
+  let markers: string[] = ['token=', 'pair='];
   for (let i = 0; i < markers.length; i++) {
     let index = text.indexOf(markers[i]);
     if (index < 0) { continue; }
@@ -278,22 +391,23 @@ export function dshTokenFromLink(input: string): string {
 // 认证：把 launch token 换成持久 cookie。等价于浏览器首次打开该链接。
 export async function dshAuthenticate(baseUrl: string, token: string): Promise<string> {
   let url = normalizeDshBase(baseUrl) + '/?token=' + encodeURIComponent(token);
+  let headers: Record<string, string> = { 'Accept': 'text/html' };
+  let options: http.HttpRequestOptions = {
+    method: http.RequestMethod.GET,
+    header: headers,
+    connectTimeout: 8000,
+    readTimeout: 15000,
+    expectDataType: http.HttpDataType.STRING
+  };
   let request = http.createHttp();
   try {
-    let response = await request.request(url, {
-      method: http.RequestMethod.GET,
-      header: { 'Accept': 'text/html' },
-      connectTimeout: 8000,
-      readTimeout: 15000,
-      expectDataType: http.HttpDataType.STRING
-    });
-    let raw = headerValue(response.header as Object, 'set-cookie');
+    let response = await request.request(url, options);
+    let raw = setCookieOf(response.header as Object);
     if (raw.length === 0) {
-      throw new Error('DSH 未下发认证 cookie（HTTP ' + String(response.responseCode) + '），token 可能已失效');
+      throw new Error('DSH 未下发认证 cookie（HTTP ' + response.responseCode + '），token 可能已失效');
     }
     let cookie = authCookieFrom(raw);
     if (cookie.length === 0) {
-      // 已配对过的链接只回 303 不带新 cookie，此时沿用旧值由调用方决定。
       throw new Error('DSH 返回的 Set-Cookie 里没有 dsh-auth-* 项');
     }
     return cookie;
@@ -302,20 +416,7 @@ export async function dshAuthenticate(baseUrl: string, token: string): Promise<s
   }
 }
 
-function eventText(event: PageEvent): string {
-  let data = event.data;
-  if (data === undefined || data === null) { return ''; }
-  let collected = '';
-  let message = data.message;
-  if (message !== undefined && message !== null) { collected += contentText(message.content); }
-  if (data.inserted !== undefined && data.inserted !== null) {
-    for (let i = 0; i < data.inserted.length; i++) { collected += contentText(data.inserted[i].content); }
-  }
-  if (collected.length === 0) { collected += contentText(data.content); }
-  return collected;
-}
-
-// 只取可见正文（type === 'text'），reasoning / tool 块不进正文。
+// 从事件数据里取可见正文（只取 type === 'text'）。
 function contentText(content: PageContent[] | undefined): string {
   if (content === undefined || content === null) { return ''; }
   let text = '';
@@ -326,18 +427,43 @@ function contentText(content: PageContent[] | undefined): string {
   return text;
 }
 
-// 只取正文增量；reasoning-delta / tool-call-* 交给日志，不混进回复正文。
-function chunkText(chunk: MuxChunkPayload | undefined): string {
-  if (chunk === undefined || chunk === null) { return ''; }
-  if (chunk.type !== 'text-delta') { return ''; }
-  if (typeof chunk.text === 'string') { return chunk.text; }
-  if (typeof chunk.delta === 'string') { return chunk.delta; }
+function eventText(event: PageEvent): string {
+  let data = event.data;
+  if (data === undefined || data === null) { return ''; }
+  let collected = '';
+  let message = data.message;
+  if (message !== undefined && message !== null) { collected += contentText(message.content); }
+  let inserted = data.inserted;
+  if (inserted !== undefined && inserted !== null) {
+    for (let i = 0; i < inserted.length; i++) { collected += contentText(inserted[i].content); }
+  }
+  if (collected.length === 0) { collected += contentText(data.content); }
+  return collected;
+}
+
+function eventRole(event: PageEvent): string {
+  let data = event.data;
+  if (data === undefined || data === null) { return ''; }
+  let message = data.message;
+  if (message !== undefined && message !== null && message.role !== undefined) { return message.role; }
   return '';
 }
 
-function chunkReasoning(chunk: MuxChunkPayload | undefined): string {
+// 只取正文增量；reasoning-delta / tool-call-* 交给日志，不混进回复正文。
+function chunkText(chunk: MuxChunk | undefined): string {
+  if (chunk === undefined || chunk === null || chunk.type !== 'text-delta') { return ''; }
+  return chunk.text === undefined ? '' : chunk.text;
+}
+
+function chunkReasoning(chunk: MuxChunk | undefined): string {
   if (chunk === undefined || chunk === null || chunk.type !== 'reasoning-delta') { return ''; }
-  return typeof chunk.text === 'string' ? chunk.text : '';
+  return chunk.text === undefined ? '' : chunk.text;
+}
+
+function isOkCode(err: Object): boolean {
+  let status = err as MuxStatusCode;
+  let code = status.code;
+  return code === undefined || code === null || code === 0;
 }
 
 export class DshClient {
@@ -360,16 +486,29 @@ export class DshClient {
   }
 
   // 一元 RPC：POST /api/<ns>/<method>，参数包在 payload.args 里。
-  async call(method: string, args: WorkflowJsonMap): Promise<WorkflowJsonMap> {
+  private async call<TArgs, TValue>(method: string, args: TArgs): Promise<TValue> {
     let cookie = this.requireCookie();
     let rpcId = mintRpcId();
-    let payload: WorkflowJsonMap = { 'args': args };
-    let envelope: RpcEnvelope = { type: 'client-request', rpcId: rpcId, method: method, payload: payload };
-    let headers: WorkflowJsonMap = {
+    let payload: RpcPayload<TArgs> = { args: args };
+    let envelope: RpcEnvelope<TArgs> = {
+      type: 'client-request',
+      rpcId: rpcId,
+      method: method,
+      payload: payload
+    };
+    let headers: JsonHeaders = {
       'Content-Type': 'application/json',
       'Cookie': cookie
     };
     let url = normalizeDshBase(this.config.baseUrl) + '/api/' + method;
+    let options: http.HttpRequestOptions = {
+      method: http.RequestMethod.POST,
+      header: headers,
+      extraData: ArkJSON.stringify(envelope),
+      connectTimeout: 8000,
+      readTimeout: RPC_TIMEOUT_MS,
+      expectDataType: http.HttpDataType.STRING
+    };
     let request = http.createHttp();
     let timer = -1;
     try {
@@ -378,20 +517,13 @@ export class DshClient {
           reject(new Error('DSH 请求超时'));
           request.destroy();
         }, RPC_TIMEOUT_MS);
-        request.request(url, {
-          method: http.RequestMethod.POST,
-          header: headers,
-          extraData: ArkJSON.stringify(envelope),
-          connectTimeout: 8000,
-          readTimeout: RPC_TIMEOUT_MS,
-          expectDataType: http.HttpDataType.STRING
-        }).then(resolve).catch(reject);
+        request.request(url, options).then(resolve).catch(reject);
       });
-      let body = String(response.result);
+      let body = response.result as string;
       if (response.responseCode === 401) { throw new Error('DSH 认证已失效，请重新粘贴带 token 的链接'); }
       if (response.responseCode === 404) { throw new Error('DSH 上没有方法 ' + method); }
       if (response.responseCode < 200 || response.responseCode >= 300) {
-        throw new Error('HTTP ' + String(response.responseCode) + ': ' + body.substring(0, 200));
+        throw new Error('HTTP ' + response.responseCode + ': ' + body.substring(0, 200));
       }
       let parsed = ArkJSON.parse(body) as ServerResponse;
       if (parsed.type !== 'server-response' || parsed.rpcId !== rpcId) {
@@ -401,12 +533,13 @@ export class DshClient {
       if (result === undefined || result === null) { throw new Error('DSH 响应缺少 result'); }
       if (result.ok !== true) {
         let error = result.error;
-        let message = error === undefined || error === null ? 'DSH 调用失败' :
-          ((error.code === undefined ? '' : String(error.code) + ': ') + (error.message === undefined ? '' : error.message));
-        throw new Error(message);
+        if (error === undefined || error === null) { throw new Error('DSH 调用失败'); }
+        let code = error.code === undefined ? '' : error.code + ': ';
+        let message = error.message === undefined ? 'DSH 调用失败' : error.message;
+        throw new Error(code + message);
       }
-      let value = result.value === undefined || result.value === null ? {} : result.value;
-      return value as WorkflowJsonMap;
+      if (result.value === undefined || result.value === null) { throw new Error('DSH 响应缺少 value'); }
+      return result.value as TValue;
     } finally {
       clearTimeout(timer);
       try { request.destroy(); } catch (e) { /* 已结束。 */ }
@@ -414,8 +547,9 @@ export class DshClient {
   }
 
   async listSessions(): Promise<DshSession[]> {
-    let value = await this.call('session/list', { '_request': {} } as WorkflowJsonMap);
-    let parsed = value as SessionListValue;
+    let empty: EmptyRequest = {};
+    let args: SessionListArgs = { _request: empty };
+    let parsed = await this.call<SessionListArgs, SessionListValue>('session/list', args);
     let items = parsed.items === undefined ? [] : parsed.items;
     let sessions: DshSession[] = [];
     for (let i = 0; i < items.length; i++) {
@@ -432,7 +566,7 @@ export class DshClient {
           if (values.agentPreset !== undefined && values.agentPreset !== null) { preset = values.agentPreset; }
         }
       }
-      sessions.push({
+      let session: DshSession = {
         sessionId: sessionId,
         title: title,
         cwd: item.cwd === undefined ? '' : item.cwd,
@@ -441,96 +575,105 @@ export class DshClient {
         agentAvailable: item.agentAvailable === true,
         agentPreset: preset,
         updatedAt: item.updatedAt === undefined ? 0 : item.updatedAt
-      });
+      };
+      sessions.push(session);
     }
     return sessions;
   }
 
   async createSession(workspaceId: string = '', cwd: string = '', agentPreset: string = ''): Promise<string> {
-    let request: WorkflowJsonMap = {};
-    if (workspaceId.length > 0) { request['workspaceId'] = workspaceId; }
-    if (cwd.length > 0) { request['cwd'] = cwd; }
-    if (agentPreset.length > 0) { request['agentPreset'] = agentPreset; }
-    let value = await this.call('session/create', { 'request': request } as WorkflowJsonMap);
-    let parsed = value as CreatedSessionValue;
+    let payload: SessionCreatePayload = {};
+    if (workspaceId.length > 0) { payload.workspaceId = workspaceId; }
+    if (cwd.length > 0) { payload.cwd = cwd; }
+    if (agentPreset.length > 0) { payload.agentPreset = agentPreset; }
+    let args: SessionCreateArgs = { request: payload };
+    let parsed = await this.call<SessionCreateArgs, CreatedSessionValue>('session/create', args);
     let sessionId = parsed.sessionId === undefined ? '' : parsed.sessionId;
     if (sessionId.length === 0) { throw new Error('DSH 未返回新会话 id'); }
     return sessionId;
   }
 
   async listAgentPresets(): Promise<DshPreset[]> {
-    let value = await this.call('agentPresets/list', {} as WorkflowJsonMap);
-    let parsed = value as PresetListValue;
+    let args: EmptyRequest = {};
+    let parsed = await this.call<EmptyRequest, PresetListValue>('agentPresets/list', args);
     let presets = parsed.presets === undefined ? [] : parsed.presets;
     let output: DshPreset[] = [];
     for (let i = 0; i < presets.length; i++) {
       let item = presets[i];
       let id = item.id === undefined ? '' : item.id;
       if (id.length === 0) { continue; }
-      output.push({
+      let preset: DshPreset = {
         id: id,
         name: item.name === undefined ? id : item.name,
         description: item.description === undefined ? '' : item.description,
         isDefault: item.isDefault === true
-      });
+      };
+      output.push(preset);
     }
     return output;
   }
 
-  // 工作区列表：宿主未组合该服务时静默返回空（dsh web 默认没有 workspace/list）。
+  // 宿主未组合 workspace 服务时静默返回空（dsh web 默认没有 workspace/list）。
   async listWorkspaces(): Promise<DshWorkspace[]> {
+    let empty: EmptyRequest = {};
+    let args: SessionListArgs = { _request: empty };
+    let parsed: WorkspaceListValue;
     try {
-      let value = await this.call('workspace/list', { '_request': {} } as WorkflowJsonMap);
-      let parsed = value as WorkspaceListValue;
-      let items = parsed.items === undefined ? [] : parsed.items;
-      let output: DshWorkspace[] = [];
-      for (let i = 0; i < items.length; i++) {
-        let item = items[i];
-        let id = item.workspaceId === undefined ? '' : item.workspaceId;
-        if (id.length === 0) { continue; }
-        output.push({
-          workspaceId: id,
-          title: item.title === undefined ? id : item.title,
-          path: item.path === undefined ? '' : item.path
-        });
-      }
-      return output;
+      parsed = await this.call<SessionListArgs, WorkspaceListValue>('workspace/list', args);
     } catch (e) {
       return [];
     }
+    let items = parsed.items === undefined ? [] : parsed.items;
+    let output: DshWorkspace[] = [];
+    for (let i = 0; i < items.length; i++) {
+      let item = items[i];
+      let id = item.workspaceId === undefined ? '' : item.workspaceId;
+      if (id.length === 0) { continue; }
+      let workspace: DshWorkspace = {
+        workspaceId: id,
+        title: item.title === undefined ? id : item.title,
+        path: item.path === undefined ? '' : item.path
+      };
+      output.push(workspace);
+    }
+    return output;
   }
 
-  // 发送一条消息。mode=queue 排队等当前回合；requestId 由客户端生成并持久化在用户消息上。
+  // 发送一条消息。mode=queue 排队等当前回合；requestId 由调用方生成并持久化。
   async prompt(sessionId: string, text: string, requestId: string): Promise<void> {
-    let content: WorkflowJsonMap[] = [{ 'type': 'text', 'text': text } as WorkflowJsonMap];
-    let request: WorkflowJsonMap = {
-      'requestId': requestId,
-      'sessionId': sessionId,
-      'mode': 'queue',
-      'content': content
+    let part: TextContent = { type: 'text', text: text };
+    let payload: SessionPromptPayload = {
+      requestId: requestId,
+      sessionId: sessionId,
+      mode: 'queue',
+      content: [part]
     };
-    await this.call('session/prompt', { 'request': request } as WorkflowJsonMap);
+    let args: SessionPromptArgs = { request: payload };
+    await this.call<SessionPromptArgs, Object>('session/prompt', args);
   }
 
   async cancel(sessionId: string): Promise<void> {
-    await this.call('session/cancel', { 'request': { 'sessionId': sessionId } as WorkflowJsonMap } as WorkflowJsonMap);
+    let payload: SessionIdPayload = { sessionId: sessionId };
+    let args: SessionIdArgs = { request: payload };
+    await this.call<SessionIdArgs, Object>('session/cancel', args);
   }
 
   async rename(sessionId: string, title: string): Promise<void> {
-    let request: WorkflowJsonMap = { 'sessionId': sessionId, 'title': title };
-    await this.call('session/rename', { 'request': request } as WorkflowJsonMap);
+    let payload: SessionRenamePayload = { sessionId: sessionId, title: title };
+    let args: SessionRenameArgs = { request: payload };
+    await this.call<SessionRenameArgs, Object>('session/rename', args);
   }
 
-  // 历史：session/page 要求 throughSeq 不越过跟随游标；调用方用 follow 的 cursor 作为上界。
+  // 历史：throughSeq 用 follow 打开时的 cursor 作为上界。
   async page(sessionId: string, throughSeq: number, maxMessages: number): Promise<DshFollowFrame[]> {
-    let address: WorkflowJsonMap = { 'kind': 'session', 'sessionId': sessionId };
-    let request: WorkflowJsonMap = {
-      'address': address,
-      'throughSeq': throughSeq,
-      'maxMessages': maxMessages
+    let address: FollowAddress = { kind: 'session', sessionId: sessionId };
+    let payload: SessionPagePayload = {
+      address: address,
+      throughSeq: throughSeq,
+      maxMessages: maxMessages
     };
-    let value = await this.call('session/page', { 'request': request } as WorkflowJsonMap);
-    let parsed = value as PageValue;
+    let args: SessionPageArgs = { request: payload };
+    let parsed = await this.call<SessionPageArgs, PageValue>('session/page', args);
     let records = parsed.records === undefined ? [] : parsed.records;
     let frames: DshFollowFrame[] = [];
     for (let i = 0; i < records.length; i++) {
@@ -539,34 +682,39 @@ export class DshClient {
       let eventType = event.type === undefined ? '' : event.type;
       let text = eventText(event);
       if (text.length === 0 && eventType !== 'turn/start' && eventType !== 'turn/end') { continue; }
-      frames.push({
+      let frame: DshFollowFrame = {
         kind: 'event',
         seq: event.seq === undefined ? 0 : event.seq,
         cursor: throughSeq,
         eventType: eventType,
-        role: roleOf(event),
-        text: text,
-        raw: ''
-      });
+        role: eventRole(event),
+        text: text
+      };
+      frames.push(frame);
     }
     return frames;
   }
 
   // 订阅一个会话：WebSocket 打开 session/follow，持续收 snapshot/event/assistant-stream。
-  // 返回取消函数。断线自动重连，重连后由调用方用 page() 补齐。
+  // 返回取消函数；断线自动重连。
   subscribeFollow(sessionId: string, onFrame: (frame: DshFollowFrame) => void,
     onError: (message: string) => void, onReconnect: () => void = (): void => {}): () => void {
     let cookie = '';
-    try { cookie = this.requireCookie(); } catch (e) {
+    try {
+      cookie = this.requireCookie();
+    } catch (e) {
       onError((e as Error).message);
       return (): void => {};
     }
-    let url = normalizeDshBase(this.config.baseUrl).replace(/^http/i, 'ws') + '/api/remote.mux';
+    let wsBase = normalizeDshBase(this.config.baseUrl).replace(/^http/i, 'ws');
+    let url = wsBase + '/api/remote.mux';
     let streamId = 's-' + Date.now().toString(16) + '-' + Math.floor(Math.random() * 0xffff).toString(16);
     let socket: webSocket.WebSocket | null = null;
     let closed = false;
     let retryTimer = -1;
     let opened = false;
+
+    let connectRef: () => void = (): void => {};
 
     let scheduleReconnect = (): void => {
       if (closed || retryTimer >= 0) { return; }
@@ -574,7 +722,7 @@ export class DshClient {
         retryTimer = -1;
         if (closed) { return; }
         onReconnect();
-        connect();
+        connectRef();
       }, MUX_RECONNECT_MS);
     };
 
@@ -582,46 +730,45 @@ export class DshClient {
       if (closed) { return; }
       let ws = webSocket.createWebSocket();
       socket = ws;
+
       ws.on('open', (err: Object, value: Object): void => {
         if (closed) { return; }
         opened = true;
-        if (openError(err)) { onError('DSH 事件流打开失败'); return; }
-        let address: WorkflowJsonMap = { 'kind': 'session', 'sessionId': sessionId };
+        if (!isOkCode(err)) { onError('DSH 事件流打开失败'); return; }
         // assistantStream 必须显式开启，否则宿主只推持久事件、不推逐字增量。
-        let request: WorkflowJsonMap = {
-          'address': address,
-          'maxMessages': 50,
-          'assistantStream': true
-        };
-        let frame: WorkflowJsonMap = {
-          'type': 'open',
-          'streamId': streamId,
-          'endpoint': 'session/follow',
-          'payload': { 'args': { 'request': request } as WorkflowJsonMap } as WorkflowJsonMap
+        let address: FollowAddress = { kind: 'session', sessionId: sessionId };
+        let request: FollowStreamRequest = { address: address, maxMessages: 50, assistantStream: true };
+        let args: FollowStreamArgs = { request: request };
+        let frame: OpenStreamFrame = {
+          type: 'open',
+          streamId: streamId,
+          endpoint: 'session/follow',
+          payload: args
         };
         ws.send(ArkJSON.stringify(frame));
       });
+
       ws.on('message', (err: Object, value: Object): void => {
         if (closed) { return; }
-        // AsyncCallback<string | ArrayBuffer> 的 data 在首参成功时为字符串。
-        handleMuxFrame(String(value), onFrame, onError);
+        handleMuxMessage(value as string, onFrame, onError);
       });
+
       ws.on('close', (err: Object, value: Object): void => {
         if (closed) { return; }
         socket = null;
         if (!opened) { onError('DSH 事件流连接失败'); }
         scheduleReconnect();
       });
-      ws.on('error', (err: Object, value: Object): void => {
+
+      ws.on('error', (err: BusinessError): void => {
         if (closed) { return; }
         socket = null;
-        onError('DSH 事件流错误');
+        onError('DSH 事件流错误: ' + err.message);
         scheduleReconnect();
       });
-      let options: webSocket.WebSocketRequestOptions = {
-        header: { 'Cookie': cookie } as WorkflowJsonMap,
-        connectTimeout: 8000
-      };
+
+      let headers: WsHeaders = { 'Cookie': cookie };
+      let options: webSocket.WebSocketRequestOptions = { header: headers };
       ws.connect(url, options).catch((e: Error): void => {
         if (closed) { return; }
         onError('DSH 事件流连接失败: ' + e.message);
@@ -629,6 +776,7 @@ export class DshClient {
       });
     };
 
+    connectRef = connect;
     connect();
     return (): void => {
       closed = true;
@@ -645,36 +793,42 @@ export class DshClient {
   }
 }
 
-// ArkTS 的 WebSocket 回调首参是 BusinessError，空对象表示成功。
-function openError(err: Object): boolean {
-  if (err === undefined || err === null) { return false; }
-  let code = (err as WorkflowJsonMap)['code'];
-  return code !== undefined && code !== null && Number(code) !== 0;
+function emitEvent(event: PageEvent, cursor: number, onFrame: (frame: DshFollowFrame) => void): void {
+  let eventType = event.type === undefined ? '' : event.type;
+  let text = eventText(event);
+  let isMarker = eventType === 'turn/start' || eventType === 'turn/end';
+  if (text.length === 0 && !isMarker) { return; }
+  let frame: DshFollowFrame = {
+    kind: 'event',
+    seq: event.seq === undefined ? 0 : event.seq,
+    cursor: cursor,
+    eventType: eventType,
+    role: eventRole(event),
+    text: text
+  };
+  onFrame(frame);
 }
 
-function roleOf(event: PageEvent): string {
-  let data = event.data;
-  if (data === undefined || data === null) { return ''; }
-  if (data.message !== undefined && data.message !== null && data.message.role !== undefined) {
-    return data.message.role;
-  }
-  return '';
-}
-
-function handleMuxFrame(text: string, onFrame: (frame: DshFollowFrame) => void,
+function handleMuxMessage(text: string, onFrame: (frame: DshFollowFrame) => void,
   onError: (message: string) => void): void {
-  let frame: MuxFrame;
-  try { frame = ArkJSON.parse(text) as MuxFrame; } catch (e) { return; }
-  if (frame.type === 'error') {
-    let error = frame.error;
-    onError(error === undefined || error === null ?
-      'DSH 事件流报错' : (error.message === undefined ? 'DSH 事件流报错' : error.message));
+  let message: MuxServerMessage;
+  try {
+    message = ArkJSON.parse(text) as MuxServerMessage;
+  } catch (e) {
     return;
   }
-  if (frame.type === 'end') { return; }
-  let value = frame.value;
+  if (message.type === 'error') {
+    let error = message.error;
+    let detail = error === undefined || error === null || error.message === undefined ?
+      'DSH 事件流报错' : error.message;
+    onError(detail);
+    return;
+  }
+  if (message.type === 'end') { return; }
+  let value = message.value;
   if (value === undefined || value === null) { return; }
   let cursor = value.cursor === undefined ? 0 : value.cursor;
+
   if (value.type === 'snapshot') {
     let records = value.records === undefined ? [] : value.records;
     for (let i = 0; i < records.length; i++) {
@@ -682,53 +836,39 @@ function handleMuxFrame(text: string, onFrame: (frame: DshFollowFrame) => void,
       if (event === undefined || event === null) { continue; }
       emitEvent(event, cursor, onFrame);
     }
-    onFrame({
-      kind: 'snapshot', seq: cursor, cursor: cursor, eventType: 'snapshot', role: '', text: '', raw: ''
-    });
+    let snap: DshFollowFrame = {
+      kind: 'snapshot', seq: cursor, cursor: cursor, eventType: 'snapshot', role: '', text: ''
+    };
+    onFrame(snap);
     return;
   }
+
   if (value.type === 'event') {
     let event = value.event;
     if (event === undefined || event === null) { return; }
     emitEvent(event, cursor, onFrame);
     return;
   }
+
   if (value.type === 'assistant-stream') {
-    let frameValue = value.frame;
-    if (frameValue === undefined || frameValue === null) { return; }
-    if (frameValue.type !== 'chunk') { return; }
-    let chunk = frameValue.chunk;
-    let text = chunkText(chunk);
-    if (text.length > 0) {
-      onFrame({
+    let part = value.frame;
+    if (part === undefined || part === null || part.type !== 'chunk') { return; }
+    let text0 = chunkText(part.chunk);
+    if (text0.length > 0) {
+      let delta: DshFollowFrame = {
         kind: 'assistant-stream', seq: cursor, cursor: cursor,
-        eventType: 'assistant/chunk', role: 'assistant', text: text, raw: ''
-      });
+        eventType: 'assistant/chunk', role: 'assistant', text: text0
+      };
+      onFrame(delta);
       return;
     }
-    let reasoning = chunkReasoning(chunk);
+    let reasoning = chunkReasoning(part.chunk);
     if (reasoning.length > 0) {
-      onFrame({
+      let think: DshFollowFrame = {
         kind: 'assistant-stream', seq: cursor, cursor: cursor,
-        eventType: 'assistant/reasoning', role: 'assistant', text: reasoning, raw: ''
-      });
+        eventType: 'assistant/reasoning', role: 'assistant', text: reasoning
+      };
+      onFrame(think);
     }
-    return;
   }
-}
-
-function emitEvent(event: PageEvent, cursor: number, onFrame: (frame: DshFollowFrame) => void): void {
-  let eventType = event.type === undefined ? '' : event.type;
-  let text = eventText(event);
-  let isMarker = eventType === 'turn/start' || eventType === 'turn/end';
-  if (text.length === 0 && !isMarker) { return; }
-  onFrame({
-    kind: 'event',
-    seq: event.seq === undefined ? 0 : event.seq,
-    cursor: cursor,
-    eventType: eventType,
-    role: roleOf(event),
-    text: text,
-    raw: ''
-  });
 }
